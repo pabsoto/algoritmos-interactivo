@@ -178,6 +178,17 @@ const Grafos = () => {
     matrix.reduce((acc, row) => acc + row[colIndex], 0)
   ) || [];
 
+  const rowCounts = matrix.map(row => row.length);
+  const colCounts = matrix[0]?.map((_, j) => matrix.length) || [];
+
+  const rowMaxs = matrix.map(row =>
+    row.length > 0 ? Math.max(...row) : 0
+  );
+  const colMaxs =
+    matrix[0]?.map((_, j) =>
+      Math.max(0, ...matrix.map(row => row[j]))
+    ) || [];
+
   const maxRowSum = rowSums.length > 0 ? Math.max(...rowSums) : 0;
   const maxColSum = colSums.length > 0 ? Math.max(...colSums) : 0;
 
@@ -487,6 +498,8 @@ const Grafos = () => {
                 <h2 className="text-xl font-bold text-white mb-4">
                   Matriz de Adyacencia
                 </h2>
+                <div style={{ display: "flex", gap: "40px", alignItems: "flex-start" }}>
+                  <div>
                 <table className="text-white border-collapse">
                   <thead>
                     <tr>
@@ -495,6 +508,8 @@ const Grafos = () => {
                         <th key={node.id}>{node.label}</th>
                       ))}
                       <th>Σ</th>
+                      <th>Count</th>
+                      <th>Max</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -514,6 +529,12 @@ const Grafos = () => {
                         <td className="border border-white/20 px-4 py-2 text-center">
                           {rowSums[i]}
                         </td>
+                        <td className="border border-white/20 px-4 py-2 text-center">
+                          {rowCounts[i]}
+                        </td>
+                        <td className="border border-white/20 px-4 py-2 text-center">
+                          {rowMaxs[i]}
+                        </td>
                       </tr>
                     ))}
 
@@ -528,6 +549,38 @@ const Grafos = () => {
                         </td>
                       ))}
                       <td className="border border-white/20 px-4 py-2 text-center"></td>
+                      <td className="border border-white/20 px-4 py-2 text-center"></td>
+                      <td className="border border-white/20 px-4 py-2 text-center"></td>
+                    </tr>
+
+                    <tr>
+                      <td>Count</td>
+                      {colCounts.map((count, index) => (
+                        <td
+                          key={index}
+                          className="border border-white/20 px-4 py-2 text-center"
+                        >
+                          {count}
+                        </td>
+                      ))}
+                      <td className="border border-white/20 px-4 py-2 text-center"></td>
+                      <td className="border border-white/20 px-4 py-2 text-center"></td>
+                      <td className="border border-white/20 px-4 py-2 text-center"></td>
+                    </tr>
+
+                    <tr>
+                      <td>Max</td>
+                      {colMaxs.map((maxVal, index) => (
+                        <td
+                          key={index}
+                          className="border border-white/20 px-4 py-2 text-center"
+                        >
+                          {maxVal}
+                        </td>
+                      ))}
+                      <td className="border border-white/20 px-4 py-2 text-center"></td>
+                      <td className="border border-white/20 px-4 py-2 text-center"></td>
+                      <td className="border border-white/20 px-4 py-2 text-center"></td>
                     </tr>
                   </tbody>
                 </table>
@@ -538,6 +591,20 @@ const Grafos = () => {
                   <p>
                     <strong>Máximo suma por columnas:</strong> {maxColSum}
                   </p>
+                </div>
+                  </div>
+                  <div>
+                <div style={{ marginTop: "10px" }}>
+                  <p>
+                    El valor más grande de la suma de las filas es:
+                    <strong> {maxRowSum} </strong>
+                  </p>
+                  <p>
+                    El valor más grande de la suma de las columnas es:
+                    <strong> {maxColSum} </strong>
+                  </p>
+                </div>
+                  </div>
                 </div>
               </div>
             )}
