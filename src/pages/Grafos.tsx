@@ -21,6 +21,7 @@ const Grafos = () => {
   const [nodes, setNodes] = useState<NodeType[]>([]);
   const [edges, setEdges] = useState<EdgeType[]>([]);
   const [selectedNode, setSelectedNode] = useState<NodeType | null>(null);
+  const [matrix, setMatrix] = useState<number[][]>([]);
 
   const [showMenu, setShowMenu] = useState(false);
   const [menuPosition, setMenuPosition] = useState({ x: 0, y: 0 });
@@ -149,6 +150,37 @@ const Grafos = () => {
     setTempConnection(null);
   };
 
+  const generateAdjacencyMatrix = () => {
+    const size = nodes.length;
+    const newMatrix: number[][] = Array.from({ length: size }, () =>
+      Array(size).fill(0)
+    );
+
+    edges.forEach(edge => {
+      const fromIndex = edge.from - 1;
+      const toIndex = edge.to - 1;
+
+      newMatrix[fromIndex][toIndex] = edge.weight;
+
+      if (edge.type === "undirected") {
+        newMatrix[toIndex][fromIndex] = edge.weight;
+      }
+    });
+
+    setMatrix(newMatrix);
+  };
+
+  const rowSums = matrix.map(row =>
+    row.reduce((acc, val) => acc + val, 0)
+  );
+
+  const colSums = matrix[0]?.map((_, colIndex) =>
+    matrix.reduce((acc, row) => acc + row[colIndex], 0)
+  ) || [];
+
+  const maxRowSum = rowSums.length > 0 ? Math.max(...rowSums) : 0;
+  const maxColSum = colSums.length > 0 ? Math.max(...colSums) : 0;
+
   return (
     <Layout>
       <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 py-10 px-6">
@@ -189,6 +221,13 @@ const Grafos = () => {
               className="w-full py-3 rounded-2xl font-semibold bg-red-600 hover:bg-red-700 text-white shadow-lg transition"
             >
               Limpiar todo
+            </button>
+
+            <button
+              onClick={generateAdjacencyMatrix}
+              className="w-full py-3 rounded-2xl font-semibold bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg transition"
+            >
+              Generar matriz de adyacencia
             </button>
           </aside>
 
@@ -442,6 +481,66 @@ const Grafos = () => {
               )}
 
             </div>
+
+            {matrix.length > 0 && (
+              <div className="mt-8 bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-6 shadow-2xl overflow-auto">
+                <h2 className="text-xl font-bold text-white mb-4">
+                  Matriz de Adyacencia
+                </h2>
+                <table className="text-white border-collapse">
+                  <thead>
+                    <tr>
+                      <th></th>
+                      {nodes.map(node => (
+                        <th key={node.id}>{node.label}</th>
+                      ))}
+                      <th>Σ</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {matrix.map((row, i) => (
+                      <tr key={i}>
+                        <td>{nodes[i]?.label}</td>
+
+                        {row.map((cell, j) => (
+                          <td
+                            key={j}
+                            className="border border-white/20 px-4 py-2 text-center"
+                          >
+                            {cell}
+                          </td>
+                        ))}
+
+                        <td className="border border-white/20 px-4 py-2 text-center">
+                          {rowSums[i]}
+                        </td>
+                      </tr>
+                    ))}
+
+                    <tr>
+                      <td>Σ</td>
+                      {colSums.map((sum, index) => (
+                        <td
+                          key={index}
+                          className="border border-white/20 px-4 py-2 text-center"
+                        >
+                          {sum}
+                        </td>
+                      ))}
+                      <td className="border border-white/20 px-4 py-2 text-center"></td>
+                    </tr>
+                  </tbody>
+                </table>
+                <div style={{ marginTop: "10px" }}>
+                  <p>
+                    <strong>Máximo suma por filas:</strong> {maxRowSum}
+                  </p>
+                  <p>
+                    <strong>Máximo suma por columnas:</strong> {maxColSum}
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
