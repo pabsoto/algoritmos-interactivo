@@ -17,7 +17,6 @@ type EdgeType = {
 };
 
 const Grafos = () => {
-  const [connectMode, setConnectMode] = useState(false);
   const [nodes, setNodes] = useState<NodeType[]>([]);
   const [edges, setEdges] = useState<EdgeType[]>([]);
   const [selectedNode, setSelectedNode] = useState<NodeType | null>(null);
@@ -35,6 +34,13 @@ const Grafos = () => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 });
   const [draggingNodeId, setDraggingNodeId] = useState<number | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Estados para edición con click derecho
+  const [editingNode, setEditingNode] = useState<NodeType | null>(null);
+  const [nodeNameInput, setNodeNameInput] = useState("");
+  const [editingEdge, setEditingEdge] = useState<EdgeType | null>(null);
+  const [edgeValueInput, setEdgeValueInput] = useState("");
 
   /* ---------- MEDIR CONTENEDOR ---------- */
   useEffect(() => {
@@ -82,26 +88,52 @@ const Grafos = () => {
     };
   }, [draggingNodeId]);
 
+  // Auto-recalcular matriz cuando cambian nodos o aristas
+  useEffect(() => {
+    generateAdjacencyMatrix();
+  }, [nodes, edges]);
+
+  /* ---------- DETECTAR NODO BAJO CURSOR ---------- */
+  const detectNodeAtPosition = (x: number, y: number): NodeType | null => {
+    const nodeRadius = 24;
+    for (const node of nodes) {
+      const distance = Math.sqrt(Math.pow(x - node.x, 2) + Math.pow(y - node.y, 2));
+      if (distance <= nodeRadius) {
+        return node;
+      }
+    }
+    return null;
+  };
+
   /* ---------- CREAR NODO ---------- */
   const handleCanvasClick = (e: React.MouseEvent) => {
-    if (connectMode) return;
+    // Si hay algún panel abierto, ignorar clicks
+    if (showMenu || editingNode || editingEdge) return;
 
     const rect = containerRef.current!.getBoundingClientRect();
+    const clickX = e.clientX - rect.left;
+    const clickY = e.clientY - rect.top;
 
-    const newNode: NodeType = {
-      id: nodes.length + 1,
-      x: e.clientX - rect.left,
-      y: e.clientY - rect.top,
-      label: String.fromCharCode(65 + nodes.length),
-    };
+    // Detectar si hay un nodo en la posición del click
+    const clickedNode = detectNodeAtPosition(clickX, clickY);
 
-    setNodes(prev => [...prev, newNode]);
+    if (clickedNode) {
+      // Click sobre nodo: abrir panel de conexión
+      handleNodeClick(clickedNode);
+    } else {
+      // Click en espacio vacío: crear nuevo nodo
+      const newNode: NodeType = {
+        id: nodes.length + 1,
+        x: clickX,
+        y: clickY,
+        label: String.fromCharCode(65 + nodes.length),
+      };
+      setNodes(prev => [...prev, newNode]);
+    }
   };
 
   /* ---------- CLICK EN NODO ---------- */
   const handleNodeClick = (node: NodeType) => {
-    if (!connectMode) return;
-
     if (!selectedNode) {
       setSelectedNode(node);
     } else {
@@ -110,6 +142,107 @@ const Grafos = () => {
       setShowMenu(true);
       setSelectedNode(null);
     }
+  };
+
+  /* ---------- CLICK DERECHO EN NODO ---------- */
+  const handleNodeRightClick = (e: React.MouseEvent, node: NodeType) => {
+    e.preventDefault();
+    setEditingNode(node);
+    setNodeNameInput(node.label);
+  };
+
+  /* ---------- CLICK DERECHO EN ARISTA ---------- */
+  const handleEdgeRightClick = (e: React.MouseEvent, edge: EdgeType) => {
+    e.preventDefault();
+    setEditingEdge(edge);
+    setEdgeValueInput(edge.weight.toString());
+  };
+
+  /* ---------- CONFIRMAR EDICIÓN NODO ---------- */
+  const handleConfirmNodeName = () => {
+    if (!editingNode) return;
+
+    setNodes(nodes.map(node =>
+      node.id === editingNode.id
+        ? { ...node, label: nodeNameInput }
+        : node
+    ));
+
+    setEditingNode(null);
+    setNodeNameInput("");
+  };
+
+  /* ---------- CONFIRMAR EDICIÓN ARISTA ---------- */
+  const handleConfirmEdgeValue = () => {
+    if (!editingEdge) return;
+
+    setEdges(edges.map(edge =>
+      edge.from === editingEdge.from && edge.to === editingEdge.to
+        ? { ...edge, weight: parseFloat(edgeValueInput) || 1 }
+        : edge
+    ));
+
+    setEditingEdge(null);
+    setEdgeValueInput("");
+  };
+
+  /* ---------- ELIMINAR ARISTA ---------- */
+  const handleDeleteEdge = () => {
+    if (!editingEdge) return;
+
+    setEdges(prev =>
+      prev.filter(edge =>
+        !(edge.from === editingEdge.from && edge.to === editingEdge.to)
+      )
+    );
+
+    setEditingEdge(null);
+    setEdgeValueInput("");
+  };
+
+  /* ---------- EXPORTAR GRAFO ---------- */
+  const handleExportGraph = () => {
+    const fileName = prompt("Introduce el nombre del grafo:");
+    if (!fileName || fileName.trim() === "") return;
+
+    const graphData = {
+      nodes: nodes,
+      edges: edges
+    };
+
+    const dataStr = JSON.stringify(graphData, null, 2);
+    const blob = new Blob([dataStr], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = fileName + ".json";
+
+    a.click();
+
+    URL.revokeObjectURL(url);
+  };
+
+  /* ---------- IMPORTAR GRAFO ---------- */
+  const handleImportGraph = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+
+    reader.onload = (e) => {
+      try {
+        const graphData = JSON.parse(e.target?.result as string);
+        if (graphData.nodes && graphData.edges) {
+          setNodes(graphData.nodes);
+          setEdges(graphData.edges);
+        }
+      } catch (error) {
+        console.error("Error al importar el grafo:", error);
+      }
+    };
+
+    reader.readAsText(file);
   };
 
   /* ---------- CREAR ARISTA ---------- */
@@ -178,8 +311,18 @@ const Grafos = () => {
     matrix.reduce((acc, row) => acc + row[colIndex], 0)
   ) || [];
 
-  const rowCounts = matrix.map(row => row.length);
-  const colCounts = matrix[0]?.map((_, j) => matrix.length) || [];
+  // COUNT SOLO VALORES DISTINTOS DE 0
+  const rowCounts = matrix.map(row =>
+    row.reduce((acc, value) => acc + (value !== 0 ? 1 : 0), 0)
+  );
+
+  const colCounts = matrix.length > 0
+    ? matrix[0].map((_, colIndex) =>
+        matrix.reduce((acc, row) =>
+          acc + (row[colIndex] !== 0 ? 1 : 0),
+        0)
+      )
+    : [];
 
   const rowMaxs = matrix.map(row =>
     row.length > 0 ? Math.max(...row) : 0
@@ -191,6 +334,65 @@ const Grafos = () => {
 
   const maxRowSum = rowSums.length > 0 ? Math.max(...rowSums) : 0;
   const maxColSum = colSums.length > 0 ? Math.max(...colSums) : 0;
+
+  // Calcular el nombre más largo para adaptar la matriz
+  const longestNodeNameLength = nodes.reduce(
+    (max, node) => Math.max(max, node.label.length),
+    1
+  );
+  
+  const dynamicCellWidth = Math.max(60, longestNodeNameLength * 14);
+
+  const tableContainerStyle = {
+    marginTop: "30px",
+    padding: "30px",
+    borderRadius: "22px",
+    background: "linear-gradient(145deg,#0f172a,#1e293b)",
+    boxShadow: "0 20px 60px rgba(0,0,0,0.45)",
+    overflowX: "auto",
+    border: "1px solid #334155"
+  };
+
+  const matrixCellBase = {
+    border: "1px solid #334155",
+    padding: "10px",
+    textAlign: "center",
+    minWidth: dynamicCellWidth + "px",
+    height: "45px",
+    whiteSpace: "nowrap"
+  };
+
+  const tableStyle = {
+    borderCollapse: "collapse",
+    width: "100%",
+    textAlign: "center",
+    color: "#f1f5f9",
+    fontSize: "15px"
+  };
+
+  const headerCellStyle = {
+    ...matrixCellBase,
+    backgroundColor: "#334155",
+    fontWeight: "bold"
+  };
+
+  const normalCellStyle = {
+    ...matrixCellBase,
+    backgroundColor: "#0f172a"
+  };
+
+  const activeCellStyle = {
+    ...matrixCellBase,
+    backgroundColor: "#2563eb",
+    fontWeight: "bold",
+    color: "#ffffff"
+  };
+
+  const sumCellStyle = {
+    ...matrixCellBase,
+    backgroundColor: "#0ea5e9",
+    fontWeight: "bold"
+  };
 
   return (
     <Layout>
@@ -217,17 +419,6 @@ const Grafos = () => {
             </div>
 
             <button
-              onClick={() => setConnectMode(v => !v)}
-              className={`w-full py-3 rounded-2xl font-semibold transition-all duration-300 shadow-lg ${
-                connectMode
-                  ? "bg-emerald-500 hover:bg-emerald-600"
-                  : "bg-blue-600 hover:bg-blue-700"
-              } text-white`}
-            >
-              {connectMode ? "Modo conexión activo" : "Activar conexión"}
-            </button>
-
-            <button
               onClick={clearGraph}
               className="w-full py-3 rounded-2xl font-semibold bg-red-600 hover:bg-red-700 text-white shadow-lg transition"
             >
@@ -240,6 +431,42 @@ const Grafos = () => {
             >
               Generar matriz de adyacencia
             </button>
+
+            <button
+              onClick={handleExportGraph}
+              className="w-full py-3 rounded-2xl font-semibold bg-green-600 hover:bg-green-700 text-white shadow-lg transition"
+            >
+              Exportar Grafo
+            </button>
+
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="w-full py-3 rounded-2xl font-semibold bg-orange-600 hover:bg-orange-700 text-white shadow-lg transition"
+            >
+              Importar Grafo
+            </button>
+
+            <input
+              type="file"
+              accept=".json"
+              ref={fileInputRef}
+              style={{ display: "none" }}
+              onChange={handleImportGraph}
+            />
+
+            <div style={{
+              marginTop: "12px",
+              fontSize: "14px",
+              color: "white",
+              lineHeight: "1.5"
+            }}>
+              <b>Cómo usar el panel de grafos:</b><br/>
+              • Click en el panel → crear un nodo<br/>
+              • Click en un nodo y luego en otro → crear conexión<br/>
+              • Click derecho en un nodo → editar nombre<br/>
+              • Click derecho en una arista → editar valor<br/>
+              • Los cambios se reflejan automáticamente en la matriz de adyacencia
+            </div>
           </aside>
 
           {/* CANVAS */}
@@ -338,6 +565,8 @@ const Grafos = () => {
                           fontSize="14"
                           fontWeight="bold"
                           textAnchor="middle"
+                          onContextMenu={(e) => handleEdgeRightClick(e, edge)}
+                          style={{ pointerEvents: "auto", cursor: "pointer" }}
                         >
                           {edge.weight}
                         </text>
@@ -384,7 +613,7 @@ const Grafos = () => {
                       key={index}
                       onContextMenu={(e) => {
                         e.preventDefault();
-                        deleteEdge(index);
+                        handleEdgeRightClick(e, edge);
                       }}
                       style={{ pointerEvents: "auto", cursor: "pointer" }}
                     >
@@ -406,6 +635,8 @@ const Grafos = () => {
                         fontSize="14"
                         fontWeight="bold"
                         textAnchor="middle"
+                        onContextMenu={(e) => handleEdgeRightClick(e, edge)}
+                        style={{ pointerEvents: "auto", cursor: "pointer" }}
                       >
                         {edge.weight}
                       </text>
@@ -426,9 +657,18 @@ const Grafos = () => {
                     e.stopPropagation();
                     handleNodeClick(node);
                   }}
-                  onContextMenu={(e) => {
-                    e.preventDefault();
-                    deleteNode(node.id);
+                  onContextMenu={(e) => handleNodeRightClick(e, node)}
+                  onDoubleClick={() => {
+                    const newName = prompt("Nuevo nombre del nodo:", node.label);
+                    if (newName && newName.trim() !== "") {
+                      setNodes(prevNodes =>
+                        prevNodes.map(n =>
+                          n.id === node.id
+                            ? { ...n, label: newName.trim() }
+                            : n
+                        )
+                      );
+                    }
                   }}
                   className="absolute w-12 h-12 rounded-full flex items-center justify-center text-sm font-bold cursor-pointer transition-all duration-300 shadow-2xl hover:scale-110"
                   style={{
@@ -450,6 +690,8 @@ const Grafos = () => {
                 <div
                   className="absolute bg-slate-900/95 backdrop-blur-xl text-white p-6 rounded-3xl shadow-2xl z-50 w-60 border border-white/10"
                   style={{ left: menuPosition.x, top: menuPosition.y }}
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onClick={(e) => e.stopPropagation()}
                 >
                   {!edgeType && (
                     <>
@@ -468,6 +710,18 @@ const Grafos = () => {
                       >
                         No dirigida
                       </button>
+                      <button
+                        onClick={() => {
+                          setShowMenu(false);
+                          setSelectedNode(null);
+                          setTempConnection(null);
+                          setEdgeType(null);
+                          setWeight(1);
+                        }}
+                        className="w-full mt-3 bg-slate-700 hover:bg-slate-600 py-2 rounded-xl transition"
+                      >
+                        Cancelar
+                      </button>
                     </>
                   )}
 
@@ -480,107 +734,203 @@ const Grafos = () => {
                         onChange={(e) => setWeight(Number(e.target.value))}
                         className="w-full p-2 rounded-xl bg-slate-800 border border-white/10 mb-4"
                       />
-                      <button
-                        onClick={createEdge}
-                        className="w-full bg-emerald-600 hover:bg-emerald-700 py-2 rounded-xl transition"
-                      >
-                        Confirmar
-                      </button>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={createEdge}
+                          className="flex-1 bg-emerald-600 hover:bg-emerald-700 py-2 rounded-xl transition"
+                        >
+                          Confirmar
+                        </button>
+                        <button
+                          onClick={() => {
+                            setShowMenu(false);
+                            setSelectedNode(null);
+                            setTempConnection(null);
+                            setEdgeType(null);
+                            setWeight(1);
+                          }}
+                          className="flex-1 bg-slate-700 hover:bg-slate-600 py-2 rounded-xl transition"
+                        >
+                          Cancelar
+                        </button>
+                      </div>
                     </>
                   )}
+                </div>
+              )}
+
+              {/* PANEL PARA EDITAR NODO */}
+              {editingNode && (
+                <div
+                  className="absolute bg-slate-900/95 backdrop-blur-xl text-white p-6 rounded-3xl shadow-2xl z-50 w-60 border border-white/10"
+                  style={{ left: editingNode.x + 30, top: editingNode.y }}
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <p className="text-sm font-semibold mb-4 text-gray-300">
+                    Editar nombre del nodo
+                  </p>
+                  <input
+                    type="text"
+                    value={nodeNameInput}
+                    onChange={(e) => setNodeNameInput(e.target.value)}
+                    className="w-full p-2 rounded-xl bg-slate-800 border border-white/10 mb-4"
+                  />
+                  <div className="flex gap-2">
+                    <button
+                      onClick={handleConfirmNodeName}
+                      className="flex-1 bg-emerald-600 hover:bg-emerald-700 py-2 rounded-xl transition"
+                    >
+                      Aceptar
+                    </button>
+                    <button
+                      onClick={() => {
+                        setEditingNode(null);
+                        setNodeNameInput("");
+                      }}
+                      className="flex-1 bg-slate-700 hover:bg-slate-600 py-2 rounded-xl transition"
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* PANEL PARA EDITAR ARISTA */}
+              {editingEdge && (
+                <div
+                  className="absolute bg-slate-900/95 backdrop-blur-xl text-white p-6 rounded-3xl shadow-2xl z-50 w-60 border border-white/10"
+                  style={{ left: 100, top: 100 }}
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <p className="text-sm font-semibold mb-4 text-gray-300">
+                    Editar valor de arista
+                  </p>
+                  <input
+                    type="number"
+                    value={edgeValueInput}
+                    onChange={(e) => setEdgeValueInput(e.target.value)}
+                    className="w-full p-2 rounded-xl bg-slate-800 border border-white/10 mb-4"
+                  />
+                  <div className="space-y-2">
+                    <div className="flex gap-2">
+                      <button
+                        onClick={handleConfirmEdgeValue}
+                        className="flex-1 bg-emerald-600 hover:bg-emerald-700 py-2 rounded-xl transition"
+                      >
+                        Aceptar
+                      </button>
+                      <button
+                        onClick={() => {
+                          setEditingEdge(null);
+                          setEdgeValueInput("");
+                        }}
+                        className="flex-1 bg-slate-700 hover:bg-slate-600 py-2 rounded-xl transition"
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+                    <button
+                      onClick={handleDeleteEdge}
+                      className="w-full bg-red-600 hover:bg-red-700 py-2 rounded-xl transition"
+                    >
+                      Eliminar arista
+                    </button>
+                  </div>
                 </div>
               )}
 
             </div>
 
             {matrix.length > 0 && (
-              <div className="mt-8 bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-6 shadow-2xl overflow-auto">
+              <div style={tableContainerStyle}>
                 <h2 className="text-xl font-bold text-white mb-4">
                   Matriz de Adyacencia
                 </h2>
                 <div style={{ display: "flex", gap: "40px", alignItems: "flex-start" }}>
                   <div>
-                <table className="text-white border-collapse">
+                <table style={tableStyle}>
                   <thead>
                     <tr>
-                      <th></th>
+                      <th style={headerCellStyle}></th>
                       {nodes.map(node => (
-                        <th key={node.id}>{node.label}</th>
+                        <th key={node.id} style={headerCellStyle}>{node.label}</th>
                       ))}
-                      <th>Σ</th>
-                      <th>Count</th>
-                      <th>Max</th>
+                      <th style={headerCellStyle}>Σ</th>
+                      <th style={headerCellStyle}>Count</th>
+                      <th style={headerCellStyle}>Max</th>
                     </tr>
                   </thead>
                   <tbody>
                     {matrix.map((row, i) => (
                       <tr key={i}>
-                        <td>{nodes[i]?.label}</td>
+                        <td style={headerCellStyle}>{nodes[i]?.label}</td>
 
                         {row.map((cell, j) => (
                           <td
                             key={j}
-                            className="border border-white/20 px-4 py-2 text-center"
+                            style={cell !== 0 ? activeCellStyle : normalCellStyle}
                           >
                             {cell}
                           </td>
                         ))}
 
-                        <td className="border border-white/20 px-4 py-2 text-center">
+                        <td style={sumCellStyle}>
                           {rowSums[i]}
                         </td>
-                        <td className="border border-white/20 px-4 py-2 text-center">
+                        <td style={sumCellStyle}>
                           {rowCounts[i]}
                         </td>
-                        <td className="border border-white/20 px-4 py-2 text-center">
+                        <td style={sumCellStyle}>
                           {rowMaxs[i]}
                         </td>
                       </tr>
                     ))}
 
                     <tr>
-                      <td>Σ</td>
+                      <td style={headerCellStyle}>Σ</td>
                       {colSums.map((sum, index) => (
                         <td
                           key={index}
-                          className="border border-white/20 px-4 py-2 text-center"
+                          style={sumCellStyle}
                         >
                           {sum}
                         </td>
                       ))}
-                      <td className="border border-white/20 px-4 py-2 text-center"></td>
-                      <td className="border border-white/20 px-4 py-2 text-center"></td>
-                      <td className="border border-white/20 px-4 py-2 text-center"></td>
+                      <td style={sumCellStyle}></td>
+                      <td style={sumCellStyle}></td>
+                      <td style={sumCellStyle}></td>
                     </tr>
 
                     <tr>
-                      <td>Count</td>
+                      <td style={headerCellStyle}>Count</td>
                       {colCounts.map((count, index) => (
                         <td
                           key={index}
-                          className="border border-white/20 px-4 py-2 text-center"
+                          style={sumCellStyle}
                         >
                           {count}
                         </td>
                       ))}
-                      <td className="border border-white/20 px-4 py-2 text-center"></td>
-                      <td className="border border-white/20 px-4 py-2 text-center"></td>
-                      <td className="border border-white/20 px-4 py-2 text-center"></td>
+                      <td style={sumCellStyle}></td>
+                      <td style={sumCellStyle}></td>
+                      <td style={sumCellStyle}></td>
                     </tr>
 
                     <tr>
-                      <td>Max</td>
+                      <td style={headerCellStyle}>Max</td>
                       {colMaxs.map((maxVal, index) => (
                         <td
                           key={index}
-                          className="border border-white/20 px-4 py-2 text-center"
+                          style={sumCellStyle}
                         >
                           {maxVal}
                         </td>
                       ))}
-                      <td className="border border-white/20 px-4 py-2 text-center"></td>
-                      <td className="border border-white/20 px-4 py-2 text-center"></td>
-                      <td className="border border-white/20 px-4 py-2 text-center"></td>
+                      <td style={sumCellStyle}></td>
+                      <td style={sumCellStyle}></td>
+                      <td style={sumCellStyle}></td>
                     </tr>
                   </tbody>
                 </table>
