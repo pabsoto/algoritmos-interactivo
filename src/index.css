@@ -1,0 +1,211 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&family=Inter:wght@300;400;500;600;700&family=Montserrat:wght@400;600;700;800&display=swap');
+
+@layer base {
+  :root {
+    /* Base */
+    --background: 240 20% 97%;
+    --foreground: 240 30% 12%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 240 30% 12%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 30% 12%;
+
+    /* Primary — violeta-azul vibrante */
+    --primary: 248 70% 58%;
+    --primary-foreground: 0 0% 100%;
+
+    /* Secondary */
+    --secondary: 248 40% 94%;
+    --secondary-foreground: 248 50% 30%;
+
+    /* Muted */
+    --muted: 240 20% 94%;
+    --muted-foreground: 240 15% 48%;
+
+    /* Accent — azul-cian */
+    --accent: 200 80% 92%;
+    --accent-foreground: 200 70% 30%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 248 20% 86%;
+    --input: 248 20% 86%;
+    --ring: 248 70% 58%;
+
+    --radius: 0.875rem;
+
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 240 5.3% 26.1%;
+    --sidebar-primary: 240 5.9% 10%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 240 4.8% 95.9%;
+    --sidebar-accent-foreground: 240 5.9% 10%;
+    --sidebar-border: 220 13% 91%;
+    --sidebar-ring: 248 70% 58%;
+
+    /* Custom tokens */
+    --gradient-hero: linear-gradient(135deg, hsl(248 70% 58%), hsl(200 80% 50%));
+    --gradient-card: linear-gradient(145deg, hsl(0 0% 100%), hsl(248 40% 97%));
+    --gradient-bg: linear-gradient(160deg, hsl(240 30% 97%) 0%, hsl(248 40% 95%) 50%, hsl(200 40% 96%) 100%);
+    --gradient-hero-overlay: linear-gradient(160deg, hsl(248 70% 20% / 0.88), hsl(200 80% 20% / 0.80));
+    --shadow-card: 0 2px 16px -4px hsl(248 50% 60% / 0.12);
+    --shadow-card-hover: 0 12px 32px -6px hsl(248 60% 58% / 0.22);
+    --shadow-btn: 0 4px 14px -2px hsl(248 70% 58% / 0.38);
+
+    /* Grid lines for graph canvas */
+    --grid-color: hsl(248 30% 88% / 0.6);
+  }
+
+  .dark {
+    --background: 240 30% 6%;
+    --foreground: 240 20% 95%;
+    --card: 240 25% 10%;
+    --card-foreground: 240 20% 95%;
+    --popover: 240 25% 10%;
+    --popover-foreground: 240 20% 95%;
+    --primary: 248 70% 65%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 248 30% 18%;
+    --secondary-foreground: 248 40% 80%;
+    --muted: 240 20% 14%;
+    --muted-foreground: 240 10% 55%;
+    --accent: 200 50% 20%;
+    --accent-foreground: 200 70% 80%;
+    --destructive: 0 62% 35%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 248 20% 20%;
+    --input: 248 20% 20%;
+    --ring: 248 70% 65%;
+    --sidebar-background: 240 5.9% 10%;
+    --sidebar-foreground: 240 4.8% 95.9%;
+    --sidebar-primary: 248 70% 65%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 3.7% 15.9%;
+    --sidebar-accent-foreground: 240 4.8% 95.9%;
+    --sidebar-border: 240 3.7% 15.9%;
+    --sidebar-ring: 248 70% 65%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: 'Inter', 'Poppins', sans-serif;
+    background: var(--gradient-bg);
+    min-height: 100vh;
+  }
+
+  h1, h2, h3, h4 {
+    font-family: 'Montserrat', 'Poppins', sans-serif;
+    font-weight: 700;
+  }
+}
+
+@layer components {
+  /* Cards */
+  .academic-card {
+    @apply bg-card rounded-2xl p-6 border border-border;
+    background: var(--gradient-card);
+    box-shadow: var(--shadow-card);
+    transition: box-shadow 0.3s ease, transform 0.3s ease;
+  }
+  .academic-card:hover {
+    box-shadow: var(--shadow-card-hover);
+    transform: translateY(-3px);
+  }
+
+  /* Sections */
+  .academic-section {
+    @apply py-12 px-4 md:px-8;
+  }
+
+  .academic-container {
+    @apply max-w-6xl mx-auto;
+  }
+
+  /* Inputs */
+  .academic-input {
+    @apply w-full px-4 py-2.5 rounded-xl border border-border bg-background text-foreground
+           focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary
+           transition-all duration-200 text-sm font-medium;
+    font-family: 'Inter', sans-serif;
+  }
+
+  /* Primary button */
+  .academic-btn {
+    @apply inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl
+           bg-primary text-primary-foreground font-semibold text-sm
+           hover:opacity-90 active:scale-[0.97] transition-all duration-200;
+    font-family: 'Poppins', sans-serif;
+    box-shadow: var(--shadow-btn);
+  }
+
+  /* Outline button */
+  .academic-btn-outline {
+    @apply inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl
+           border-2 border-primary text-primary font-semibold text-sm
+           hover:bg-primary hover:text-primary-foreground transition-all duration-200;
+    font-family: 'Poppins', sans-serif;
+  }
+
+  /* Ghost secondary button */
+  .academic-btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl
+           bg-secondary text-secondary-foreground font-medium text-sm
+           hover:bg-primary hover:text-primary-foreground transition-all duration-200;
+  }
+
+  /* Empty containers */
+  .academic-empty-container {
+    @apply min-h-[200px] rounded-xl border-2 border-dashed border-border bg-muted/30
+           flex items-center justify-center text-muted-foreground text-sm;
+  }
+
+  /* Labels */
+  .academic-label {
+    @apply text-xs font-semibold text-muted-foreground mb-1.5 block uppercase tracking-wider;
+    font-family: 'Poppins', sans-serif;
+  }
+
+  /* Gradient badge */
+  .gradient-badge {
+    @apply inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-semibold;
+    background: var(--gradient-hero);
+    color: hsl(0 0% 100%);
+  }
+
+  /* Gradient text */
+  .gradient-text {
+    background: var(--gradient-hero);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  /* Graph canvas grid */
+  .graph-grid {
+    background-color: hsl(var(--card));
+    background-image:
+      linear-gradient(var(--grid-color) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid-color) 1px, transparent 1px);
+    background-size: 32px 32px;
+  }
+
+  /* Counter badge */
+  .counter-badge {
+    @apply flex items-center gap-2 px-4 py-2.5 rounded-xl border border-border;
+    background: var(--gradient-card);
+    box-shadow: var(--shadow-card);
+  }
+}
