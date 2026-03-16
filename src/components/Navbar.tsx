@@ -1,10 +1,11 @@
 import { Link, useLocation } from "react-router-dom";
-import { BookOpen, GitFork, Home } from "lucide-react";
+import { BookOpen, GitFork, Home, Users } from "lucide-react";
 
 const navItems = [
   { to: "/", label: "Inicio", icon: Home },
   { to: "/algoritmos", label: "Algoritmos", icon: BookOpen },
   { to: "/grafos", label: "Grafos", icon: GitFork },
+  { to: "/asignacion", label: "Algoritmo de Asignación", icon: Users },
 ];
 
 const Navbar = () => {
