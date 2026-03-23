@@ -180,10 +180,10 @@ const Asignacion = () => {
     let newId: number;
     
     if (type === "agent") {
-      newLabel = `A${existingAgents + 1}`;
+      newLabel = `Origen ${existingAgents + 1}`;
       newId = existingAgents + 1;
     } else {
-      newLabel = `T${existingTasks + 1}`;
+      newLabel = `Destino ${existingTasks + 1}`;
       newId = existingTasks + 1000; // Usar IDs altos para tareas para evitar conflictos
     }
     
@@ -1195,13 +1195,13 @@ const Asignacion = () => {
                       onClick={() => createNodeWithType("agent")}
                       className="w-full bg-green-600 hover:bg-green-700 py-2 rounded-xl transition"
                     >
-                      Agente
+                      Origen
                     </button>
                     <button
                       onClick={() => createNodeWithType("task")}
                       className="w-full bg-blue-600 hover:bg-blue-700 py-2 rounded-xl transition"
                     >
-                      Tarea
+                      Destino
                     </button>
                     <button
                       onClick={() => setShowNodeTypeMenu(false)}
