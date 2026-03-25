@@ -58,7 +58,6 @@ const Grafos = () => {
     return () => window.removeEventListener("resize", updateSize);
   }, []);
 
-  
   useEffect(() => {
     const handleMove = (e: MouseEvent) => {
       if (draggingNodeId === null || !containerRef.current) return;
@@ -251,7 +250,7 @@ const Grafos = () => {
 
   /* ---------- IMPORTAR GRAFO ---------- */
   const handleImportGraph = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files[0];
+    const file = event.target.files?.[0];
     if (!file) return;
 
     const reader = new FileReader();
@@ -293,13 +292,11 @@ const Grafos = () => {
     setWeightInput("1");
   };
 
-  
   const deleteNode = (nodeId: number) => {
     setNodes(prev => prev.filter(n => n.id !== nodeId));
     setEdges(prev => prev.filter(e => e.from !== nodeId && e.to !== nodeId));
   };
 
-  
   const deleteEdge = (index: number) => {
     setEdges(prev => prev.filter((_, i) => i !== index));
   };
@@ -373,57 +370,6 @@ const Grafos = () => {
   );
   
   const dynamicCellWidth = Math.max(60, longestNodeNameLength * 14);
-
-  const tableContainerStyle: React.CSSProperties = {
-    marginTop: "30px",
-    padding: "30px",
-    borderRadius: "22px",
-    background: "linear-gradient(145deg,#0f172a,#1e293b)",
-    boxShadow: "0 20px 60px rgba(0,0,0,0.45)",
-    overflowX: "auto",
-    border: "1px solid #334155"
-  };
-
-  const matrixCellBase: React.CSSProperties = {
-    border: "1px solid #334155",
-    padding: "10px",
-    textAlign: "center",
-    minWidth: dynamicCellWidth + "px",
-    height: "45px",
-    whiteSpace: "nowrap"
-  };
-
-  const tableStyle: React.CSSProperties = {
-    borderCollapse: "collapse",
-    width: "100%",
-    textAlign: "center",
-    color: "#f1f5f9",
-    fontSize: "15px"
-  };
-
-  const headerCellStyle: React.CSSProperties = {
-    ...matrixCellBase,
-    backgroundColor: "#334155",
-    fontWeight: "bold"
-  };
-
-  const normalCellStyle: React.CSSProperties = {
-    ...matrixCellBase,
-    backgroundColor: "#0f172a"
-  };
-
-  const activeCellStyle: React.CSSProperties = {
-    ...matrixCellBase,
-    backgroundColor: "#2563eb",
-    fontWeight: "bold",
-    color: "#ffffff"
-  };
-
-  const sumCellStyle: React.CSSProperties = {
-    ...matrixCellBase,
-    backgroundColor: "#0ea5e9",
-    fontWeight: "bold"
-  };
 
   return (
     <Layout>
@@ -551,7 +497,6 @@ const Grafos = () => {
                   const to = nodes.find(n => n.id === edge.to);
                   if (!from || !to) return null;
 
-                  
                   if (edge.from === edge.to) {
                     const nodeRadius = 24;
                     const loopHeight = 60;
@@ -693,8 +638,6 @@ const Grafos = () => {
                   }}
                   onContextMenu={(e) => handleNodeRightClick(e, node)}
                   onDoubleClick={() => {
-                    // Double-click should only open connection panel
-                    // No automatic loop creation
                     handleNodeClick(node);
                   }}
                   className="absolute w-12 h-12 rounded-full flex items-center justify-center text-sm font-bold cursor-pointer transition-all duration-300 shadow-2xl hover:scale-110"
@@ -886,113 +829,100 @@ const Grafos = () => {
 
             </div>
 
+            {/* AQUI INICIA LA TABLA PERFECTAMENTE BALANCEADA */}
             {matrix.length > 0 && (
-              <div style={tableContainerStyle}>
-                <h2 className="text-xl font-bold text-white mb-4">
-                  Matriz de Adyacencia
-                </h2>
-                <div style={{ display: "flex", gap: "40px", alignItems: "flex-start" }}>
-                  <div>
-                <table style={tableStyle}>
-                  <thead>
-                    <tr>
-                      <th style={headerCellStyle}></th>
-                      {nodes.map(node => (
-                        <th key={node.id} style={headerCellStyle}>{node.label}</th>
-                      ))}
-                      <th style={headerCellStyle}>Σ</th>
-                      <th style={headerCellStyle}>Count</th>
-                      <th style={headerCellStyle}>Max</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {matrix.map((row, i) => (
-                      <tr key={i}>
-                        <td style={headerCellStyle}>{nodes[i]?.label}</td>
+              <div className="mt-8 space-y-8">
+                <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-6 shadow-2xl">
+                  <h2 className="text-xl font-bold text-white mb-4">
+                    Matriz de Adyacencia
+                  </h2>
+                  <div style={{ display: "flex", gap: "40px", alignItems: "flex-start" }}>
+                    <div>
+                      <div className="overflow-x-auto">
+                        <table className="min-w-full">
+                          <thead>
+                            <tr>
+                              <th className="px-4 py-2 text-left text-sm font-medium text-gray-300 border border-white/20 bg-white/10"></th>
+                              {nodes.map(node => (
+                                <th key={node.id} className="px-4 py-2 text-center text-sm font-medium text-gray-300 border border-white/20 bg-white/10">{node.label}</th>
+                              ))}
+                              <th className="px-4 py-2 text-center text-sm font-medium text-cyan-300 border border-white/20 bg-cyan-900/20">Σ</th>
+                              <th className="px-4 py-2 text-center text-sm font-medium text-cyan-300 border border-white/20 bg-cyan-900/20">Count</th>
+                              <th className="px-4 py-2 text-center text-sm font-medium text-cyan-300 border border-white/20 bg-cyan-900/20">Max</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {matrix.map((row, i) => (
+                              <tr key={i}>
+                                <td className="px-4 py-2 text-sm font-medium text-gray-300 border border-white/20 bg-white/10">
+                                  {nodes[i]?.label}
+                                </td>
+                                {row.map((cell, j) => (
+                                  <td
+                                    key={j}
+                                    className={`px-4 py-2 text-center text-sm border border-white/20 ${
+                                      cell === 0 
+                                        ? 'bg-slate-800/50 text-gray-400' 
+                                        : 'bg-blue-900/30 text-blue-300 font-medium'
+                                    }`}
+                                  >
+                                    {cell}
+                                  </td>
+                                ))}
+                                <td className="px-4 py-2 text-center text-sm font-medium text-cyan-300 border border-white/20 bg-cyan-900/20">
+                                  {rowSums[i]}
+                                </td>
+                                <td className="px-4 py-2 text-center text-sm font-medium text-cyan-300 border border-white/20 bg-cyan-900/20">
+                                  {rowCounts[i]}
+                                </td>
+                                <td className="px-4 py-2 text-center text-sm font-medium text-cyan-300 border border-white/20 bg-cyan-900/20">
+                                  {rowMaxs[i]}
+                                </td>
+                              </tr>
+                            ))}
+                            
+                            {/* FILA EXTRA: SUMA DE COLUMNAS */}
+                            <tr>
+                              <td className="px-4 py-2 text-sm font-medium text-cyan-300 border border-white/20 bg-cyan-900/20 text-center">Σ</td>
+                              {colSums.map((sum, j) => (
+                                <td key={`colsum-${j}`} className="px-4 py-2 text-center text-sm font-medium text-cyan-300 border border-white/20 bg-cyan-900/20">
+                                  {sum}
+                                </td>
+                              ))}
+                              <td colSpan={3} className="border border-white/20 bg-cyan-900/20"></td>
+                            </tr>
 
-                        {row.map((cell, j) => (
-                          <td
-                            key={j}
-                            style={cell !== 0 ? activeCellStyle : normalCellStyle}
-                          >
-                            {cell}
-                          </td>
-                        ))}
+                            {/* FILA EXTRA: COUNT DE COLUMNAS */}
+                            <tr>
+                              <td className="px-4 py-2 text-sm font-medium text-cyan-300 border border-white/20 bg-cyan-900/20 text-center">Count</td>
+                              {colCounts.map((count, j) => (
+                                <td key={`colcount-${j}`} className="px-4 py-2 text-center text-sm font-medium text-cyan-300 border border-white/20 bg-cyan-900/20">
+                                  {count}
+                                </td>
+                              ))}
+                              <td colSpan={3} className="border border-white/20 bg-cyan-900/20"></td>
+                            </tr>
 
-                        <td style={sumCellStyle}>
-                          {rowSums[i]}
-                        </td>
-                        <td style={sumCellStyle}>
-                          {rowCounts[i]}
-                        </td>
-                        <td style={sumCellStyle}>
-                          {rowMaxs[i]}
-                        </td>
-                      </tr>
-                    ))}
-
-                    <tr>
-                      <td style={headerCellStyle}>Σ</td>
-                      {colSums.map((sum, index) => (
-                        <td
-                          key={index}
-                          style={sumCellStyle}
-                        >
-                          {sum}
-                        </td>
-                      ))}
-                      <td style={sumCellStyle}></td>
-                      <td style={sumCellStyle}></td>
-                      <td style={sumCellStyle}></td>
-                    </tr>
-
-                    <tr>
-                      <td style={headerCellStyle}>Count</td>
-                      {colCounts.map((count, index) => (
-                        <td
-                          key={index}
-                          style={sumCellStyle}
-                        >
-                          {count}
-                        </td>
-                      ))}
-                      <td style={sumCellStyle}></td>
-                      <td style={sumCellStyle}></td>
-                      <td style={sumCellStyle}></td>
-                    </tr>
-
-                    <tr>
-                      <td style={headerCellStyle}>Max</td>
-                      {colMaxs.map((maxVal, index) => (
-                        <td
-                          key={index}
-                          style={sumCellStyle}
-                        >
-                          {maxVal}
-                        </td>
-                      ))}
-                      <td style={sumCellStyle}></td>
-                      <td style={sumCellStyle}></td>
-                      <td style={sumCellStyle}></td>
-                    </tr>
-                  </tbody>
-                </table>
-                  </div>
-                  <div>
-                <div style={{ marginTop: "10px" }}>
-                  <p className="text-white">
-                    El valor más grande de la suma de las filas es:
-                    <strong> {maxRowSum} </strong>
-                  </p>
-                  <p className="text-white">
-                    El valor más grande de la suma de las columnas es:
-                    <strong> {maxColSum} </strong>
-                  </p>
-                </div>
+                            {/* FILA EXTRA: MAX DE COLUMNAS */}
+                            <tr>
+                              <td className="px-4 py-2 text-sm font-medium text-cyan-300 border border-white/20 bg-cyan-900/20 text-center">Max</td>
+                              {colMaxs.map((max, j) => (
+                                <td key={`colmax-${j}`} className="px-4 py-2 text-center text-sm font-medium text-cyan-300 border border-white/20 bg-cyan-900/20">
+                                  {max}
+                                </td>
+                              ))}
+                              <td colSpan={3} className="border border-white/20 bg-cyan-900/20"></td>
+                            </tr>
+                            
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
             )}
+
           </div>
         </div>
       </div>
