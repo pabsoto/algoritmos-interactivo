@@ -1,11 +1,10 @@
 import Layout from "@/components/Layout";
-import { GraduationCap, User, BookOpen, Calendar } from "lucide-react";
+import { User, BookOpen, Calendar } from "lucide-react";
 import ucatolicaLogo from "@/assets/logocato.jpg";
 
 const infoFields = [
-  { icon: User, label: "Nombre", value: "Pablo Soto Flores" },
+  { icon: User, label: "Equipo", value: ["Pablo Soto Flores", "Adriana Pando", "Mayte Torrico", "Alejandro Bobarin", "Emilia Crespo", "Paulo Escaray"] },
   { icon: BookOpen, label: "Curso", value: "Análisis de Algoritmos" },
-  { icon: GraduationCap, label: "GitHub", value: "pabsoto" },
   { icon: Calendar, label: "Semestre", value: "1-2026" },
 ];
 
@@ -89,7 +88,9 @@ const Index = () => {
             {infoFields.map((field) => (
               <div
                 key={field.label}
-                className="flex items-center gap-4 px-5 py-4 rounded-2xl border transition-all duration-200"
+                className={`flex items-center gap-4 px-5 py-4 rounded-2xl border transition-all duration-200 ${
+                  field.label === 'Equipo' ? 'col-span-1 sm:col-span-2' : ''
+                }`}
                 style={{
                   background: "hsl(0 0% 100% / 0.08)",
                   borderColor: "hsl(0 0% 100% / 0.14)",
@@ -102,19 +103,35 @@ const Index = () => {
                 >
                   <field.icon className="h-5 w-5" style={{ color: "hsl(0 0% 100%)" }} />
                 </div>
-                <div className="text-left">
+                <div className="text-left flex-1">
                   <p
                     className="text-xs font-semibold uppercase tracking-wider"
                     style={{ color: "hsl(200 80% 75%)", fontFamily: "'Poppins', sans-serif" }}
                   >
                     {field.label}
                   </p>
-                  <p
-                    className="font-semibold mt-0.5"
-                    style={{ color: "hsl(0 0% 100%)" }}
-                  >
-                    {field.value}
-                  </p>
+                  <div className="mt-1.5">
+                    {field.label === 'Equipo' && Array.isArray(field.value) ? (
+                      <div className="flex flex-wrap gap-2">
+                        {field.value.map((name, index) => (
+                          <span
+                            key={index}
+                            className="inline-block bg-white/10 px-3 py-1 rounded-full text-sm border border-white/20"
+                            style={{ color: "hsl(0 0% 100%)" }}
+                          >
+                            {name}
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <p
+                        className="font-semibold"
+                        style={{ color: "hsl(0 0% 100%)" }}
+                      >
+                        {field.value}
+                      </p>
+                    )}
+                  </div>
                 </div>
               </div>
             ))}
