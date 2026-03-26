@@ -7,6 +7,8 @@ type NodeType = {
   x: number;
   y: number;
   label: string;
+  early: number;
+  late: number;
 };
 
 type EdgeType = {
@@ -14,6 +16,7 @@ type EdgeType = {
   to: number;
   type: "directed";
   weight: number;
+  slack?: number;
 };
 
 const Johnson = () => {
@@ -40,23 +43,127 @@ const Johnson = () => {
   const [editingEdge, setEditingEdge] = useState<EdgeType | null>(null);
   const [edgeValueInput, setEdgeValueInput] = useState("");
 
-  // Estados para camino más corto
-  const [showShortestPath, setShowShortestPath] = useState(false);
-  const [shortestPathEdges, setShortestPathEdges] = useState<Set<string>>(new Set());
+  // Estado para guardar resultados manuales de PERT/CPM
+  const [networkMetrics, setNetworkMetrics] = useState<Record<number, {early: number, late: number, hValues: Record<string, number>}> | null>(null);
+  
+  // Estados para modo de cálculo dual
+  const [calcMode, setCalcMode] = useState<'max' | 'min' | null>(null);
+  const [shortestPathEdges, setShortestPathEdges] = useState<number[]>([]);
 
-  // Estados para matrices
-  const [adjacencyMatrix, setAdjacencyMatrix] = useState<number[][]>([]);
-  const [distanceMatrix, setDistanceMatrix] = useState<number[][]>([]);
+  // Función manual para calcular PERT/CPM
+  const calculateCriticalPath = () => {
+    if (nodes.length === 0 || edges.length === 0) {
+      alert("Se necesitan nodos y aristas para calcular la ruta crítica.");
+      return;
+    }
 
-  // Función para calcular camino más corto (Dijkstra)
-  const calculateShortestPath = () => {
+    const metrics: Record<number, {early: number, late: number, hValues: Record<string, number>}> = {};
+    
+    // Initialize all nodes with early=0, late=Infinity, empty hValues
+    nodes.forEach(node => {
+      metrics[node.id] = { early: 0, late: Infinity, hValues: {} };
+    });
+
+    // FORWARD PASS - Calculate Early Times
+    // Find start nodes (no incoming edges)
+    const startNodes = nodes.filter(n => 
+      !edges.some(e => e.to === n.id)
+    );
+    
+    // Set early times for start nodes to 0
+    startNodes.forEach(n => {
+      metrics[n.id].early = 0;
+    });
+
+    // Iterative forward pass with safety limit
+    let maxIterations = nodes.length * 2;
+    let changed = true;
+    let iterations = 0;
+    
+    while (changed && iterations < maxIterations) {
+      changed = false;
+      iterations++;
+      
+      edges.forEach(edge => {
+        const fromNode = metrics[edge.from];
+        const toNode = metrics[edge.to];
+        
+        if (fromNode.early !== undefined && toNode.early !== undefined) {
+          const candidate = fromNode.early + edge.weight;
+          if (candidate > toNode.early) {
+            toNode.early = candidate;
+            changed = true;
+          }
+        }
+      });
+    }
+
+    // BACKWARD PASS - Calculate Late Times
+    // Find project duration (max early time)
+    const projectDuration = Math.max(...Object.values(metrics).map(m => m.early));
+    
+    // Find end nodes (no outgoing edges)
+    const endNodes = nodes.filter(n => 
+      !edges.some(e => e.from === n.id)
+    );
+    
+    // Set late times for end nodes to project duration
+    endNodes.forEach(n => {
+      metrics[n.id].late = projectDuration;
+    });
+
+    // Iterative backward pass with safety limit
+    changed = true;
+    iterations = 0;
+    
+    while (changed && iterations < maxIterations) {
+      changed = false;
+      iterations++;
+      
+      edges.forEach(edge => {
+        const fromNode = metrics[edge.from];
+        const toNode = metrics[edge.to];
+        
+        if (fromNode.late !== Infinity && toNode.late !== undefined) {
+          const candidate = toNode.late - edge.weight;
+          if (candidate < fromNode.late) {
+            fromNode.late = candidate;
+            changed = true;
+          }
+        }
+      });
+    }
+
+    // Handle nodes that weren't reached in backward pass
+    Object.keys(metrics).forEach(nodeId => {
+      const id = parseInt(nodeId);
+      if (metrics[id].late === Infinity) {
+        metrics[id].late = metrics[id].early;
+      }
+    });
+
+    // CALCULATE H VALUES (SLACK) FOR EACH EDGE
+    edges.forEach(edge => {
+      const edgeKey = `${edge.from}-${edge.to}`;
+      const H = metrics[edge.to].late - metrics[edge.from].early - edge.weight;
+      metrics[edge.from].hValues[edgeKey] = H;
+    });
+
+    setNetworkMetrics(metrics);
+  };
+
+  // Función para Maximizar (Ruta Crítica actual)
+  const maximizeCriticalPath = () => {
+    calculateCriticalPath();
+    setCalcMode('max');
+  };
+
+  // Función para Minimizar (Algoritmo de Dijkstra)
+  const minimizeShortestPath = () => {
     if (nodes.length === 0 || edges.length === 0) {
       alert("Se necesitan nodos y aristas para calcular el camino más corto.");
       return;
     }
-
-    // Calcular matriz de distancias mínimas (Algoritmo de Johnson)
-    calculateDistanceMatrix();
 
     // Encontrar nodo inicial (sin aristas entrantes)
     const startNodes = nodes.filter(n => !edges.some(e => e.to === n.id));
@@ -124,91 +231,23 @@ const Johnson = () => {
     }
 
     // Encontrar IDs de aristas en el camino
-    const pathEdgeIds = new Set<string>();
+    const pathEdgeIds: number[] = [];
     for (let i = 0; i < path.length - 1; i++) {
       const edgeIndex = edges.findIndex(e => e.from === path[i] && e.to === path[i + 1]);
       if (edgeIndex !== -1) {
-        pathEdgeIds.add(edgeIndex.toString());
+        pathEdgeIds.push(edgeIndex);
       }
     }
 
     setShortestPathEdges(pathEdgeIds);
-    setShowShortestPath(true);
+    setCalcMode('min');
   };
 
-  // Función para limpiar resultados cuando el grafo cambia
+  // Función para limpiar métricas cuando el grafo cambia
   const clearNetworkMetrics = () => {
-    setShowShortestPath(false);
-    setShortestPathEdges(new Set());
-  };
-
-  // Función para generar matriz de adyacencia
-  const generateAdjacencyMatrix = () => {
-    const size = nodes.length;
-    const newMatrix: number[][] = Array.from({ length: size }, () =>
-      Array(size).fill(Infinity)
-    );
-
-    // Inicializar diagonal con 0 (distancia de un nodo a sí mismo)
-    for (let i = 0; i < size; i++) {
-      newMatrix[i][i] = 0;
-    }
-
-    // Llenar con pesos de las aristas
-    edges.forEach(edge => {
-      const fromIndex = nodes.findIndex(n => n.id === edge.from);
-      const toIndex = nodes.findIndex(n => n.id === edge.to);
-      
-      if (fromIndex !== -1 && toIndex !== -1) {
-        newMatrix[fromIndex][toIndex] = edge.weight;
-      }
-    });
-
-    setAdjacencyMatrix(newMatrix);
-  };
-
-  // Función para calcular matriz de distancias mínimas (Algoritmo de Johnson)
-  const calculateDistanceMatrix = () => {
-    if (nodes.length === 0) {
-      setDistanceMatrix([]);
-      return;
-    }
-
-    const size = nodes.length;
-    const distMatrix: number[][] = Array.from({ length: size }, () =>
-      Array(size).fill(Infinity)
-    );
-
-    // Inicializar con la matriz de adyacencia
-    for (let i = 0; i < size; i++) {
-      for (let j = 0; j < size; j++) {
-        if (i === j) {
-          distMatrix[i][j] = 0;
-        } else {
-          const edge = edges.find(e => 
-            nodes.findIndex(n => n.id === e.from) === i && 
-            nodes.findIndex(n => n.id === e.to) === j
-          );
-          distMatrix[i][j] = edge ? edge.weight : Infinity;
-        }
-      }
-    }
-
-    // Algoritmo de Floyd-Warshall para calcular todas las distancias mínimas
-    for (let k = 0; k < size; k++) {
-      for (let i = 0; i < size; i++) {
-        for (let j = 0; j < size; j++) {
-          if (distMatrix[i][k] !== Infinity && distMatrix[k][j] !== Infinity) {
-            const newDistance = distMatrix[i][k] + distMatrix[k][j];
-            if (newDistance < distMatrix[i][j]) {
-              distMatrix[i][j] = newDistance;
-            }
-          }
-        }
-      }
-    }
-
-    setDistanceMatrix(distMatrix);
+    setNetworkMetrics(null);
+    setCalcMode(null);
+    setShortestPathEdges([]);
   };
 
   /* ---------- MEDIR CONTENEDOR ---------- */
@@ -256,11 +295,6 @@ const Johnson = () => {
       window.removeEventListener("mouseup", stop);
     };
   }, [draggingNodeId]);
-
-  // Auto-recalcular matrices cuando cambian nodos o aristas
-  useEffect(() => {
-    generateAdjacencyMatrix();
-  }, [nodes, edges]);
 
   // Cargar grafo desde localStorage al montar el componente
   useEffect(() => {
@@ -321,6 +355,8 @@ const Johnson = () => {
         x: clickX,
         y: clickY,
         label: String.fromCharCode(65 + nodes.length),
+        early: 0,
+        late: 0,
       };
       setNodes(prev => [...prev, newNode]);
     }
@@ -536,10 +572,17 @@ const Johnson = () => {
             </button>
 
             <button
-              onClick={calculateShortestPath}
+              onClick={maximizeCriticalPath}
+              className="w-full py-3 rounded-2xl font-semibold bg-purple-600 hover:bg-purple-700 text-white shadow-lg transition"
+            >
+              Maximizar (Ruta Crítica)
+            </button>
+
+            <button
+              onClick={minimizeShortestPath}
               className="w-full py-3 rounded-2xl font-semibold bg-green-600 hover:bg-green-700 text-white shadow-lg transition"
             >
-              Calcular Camino Más Corto
+              Minimizar (Camino Más Corto)
             </button>
 
             <input
@@ -563,6 +606,95 @@ const Johnson = () => {
               • Click derecho en una arista → editar valor<br/>
               • Los cambios se reflejan automáticamente en la matriz de adyacencia
             </div>
+
+            {/* PANEL DE RESULTADOS */}
+            {calcMode && (
+              <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-6 shadow-2xl mt-6">
+                {calcMode === 'min' ? (
+                  // Modo MIN: Camino Más Corto
+                  <div>
+                    <h3 className="text-lg font-bold text-emerald-400 mb-4">
+                      El camino más corto es:
+                    </h3>
+                    <div className="text-emerald-300 font-medium">
+                      {shortestPathEdges.length > 0 ? (
+                        <div className="flex flex-wrap items-center gap-2">
+                          {shortestPathEdges.map((edgeIndex, i) => {
+                            const edge = edges[edgeIndex];
+                            if (!edge) return null;
+                            
+                            const fromNode = nodes.find(n => n.id === edge.from);
+                            const toNode = nodes.find(n => n.id === edge.to);
+                            
+                            if (!fromNode || !toNode) return null;
+                            
+                            return (
+                              <div key={i} className="flex items-center gap-2">
+                                {i > 0 && <span className="text-emerald-400">→</span>}
+                                <span className="text-white bg-emerald-900/30 px-2 py-1 rounded border border-emerald-500/30">
+                                  {fromNode.label}
+                                </span>
+                                <span className="text-emerald-400">→</span>
+                                <span className="text-white bg-emerald-900/30 px-2 py-1 rounded border border-emerald-500/30">
+                                  {toNode.label}
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <p className="text-gray-400">No se encontró un camino válido</p>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  // Modo MAX: Ruta Crítica
+                  <div>
+                    <h3 className="text-lg font-bold text-rose-400 mb-4">
+                      El camino más largo (Ruta Crítica) es:
+                    </h3>
+                    <div className="text-rose-300 font-medium space-y-2">
+                      {networkMetrics ? (
+                        <div className="space-y-2">
+                          {edges.map((edge, index) => {
+                            const edgeKey = `${edge.from}-${edge.to}`;
+                            const H = networkMetrics[edge.from]?.hValues?.[edgeKey] || 0;
+                            
+                            // Solo mostrar aristas con holgura 0 (ruta crítica)
+                            if (H !== 0) return null;
+                            
+                            const fromNode = nodes.find(n => n.id === edge.from);
+                            const toNode = nodes.find(n => n.id === edge.to);
+                            
+                            if (!fromNode || !toNode) return null;
+                            
+                            return (
+                              <div key={index} className="flex items-center justify-between bg-rose-900/30 px-3 py-2 rounded border border-rose-500/30">
+                                <span className="text-white">
+                                  {fromNode.label} → {toNode.label}
+                                </span>
+                                <span className="text-rose-400 font-semibold">
+                                  Peso: {edge.weight}
+                                </span>
+                              </div>
+                            );
+                          })}
+                          {edges.filter((edge) => {
+                            const edgeKey = `${edge.from}-${edge.to}`;
+                            const H = networkMetrics[edge.from]?.hValues?.[edgeKey] || 0;
+                            return H === 0;
+                          }).length === 0 && (
+                            <p className="text-gray-400">No se encontró una ruta crítica válida</p>
+                          )}
+                        </div>
+                      ) : (
+                        <p className="text-gray-400">Calculando ruta crítica...</p>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </aside>
 
           {/* CANVAS */}
@@ -623,15 +755,31 @@ const Johnson = () => {
                   const to = nodes.find(n => n.id === edge.to);
                   if (!from || !to) return null;
 
-                  // Verificar si esta arista está en el camino más corto
-                  const isShortestPath = shortestPathEdges.has(index.toString());
+                  let H = 0;
+                  let isCritical = false;
+                  let isShortestPath = false;
+                  
+                  // Modo MAX: Ruta Crítica con PERT/CPM
+                  if (calcMode === 'max' && networkMetrics) {
+                    const edgeKey = `${edge.from}-${edge.to}`;
+                    H = networkMetrics[edge.from]?.hValues?.[edgeKey] || 0;
+                    isCritical = H === 0;
+                  }
+                  
+                  // Modo MIN: Camino Más Corto con Dijkstra
+                  if (calcMode === 'min') {
+                    isShortestPath = shortestPathEdges.includes(index);
+                  }
 
-                  // Estilo visual
+                  // Estilo visual según el modo
                   let strokeColor = "#94a3b8"; // Color normal por defecto
                   let strokeWidth = 3;
                   let opacity = 1;
 
-                  if (showShortestPath) {
+                  if (calcMode === 'max' && isCritical) {
+                    strokeColor = "#ef4444"; // Rojo para ruta crítica
+                    strokeWidth = 4;
+                  } else if (calcMode === 'min') {
                     if (isShortestPath) {
                       strokeColor = "#10b981"; // Verde brillante para camino más corto
                       strokeWidth = 5;
@@ -687,7 +835,7 @@ const Johnson = () => {
                           onContextMenu={(e) => handleEdgeRightClick(e, edge)}
                           style={{ pointerEvents: "auto", cursor: "pointer" }}
                         >
-                          {edge.weight}
+                          {calcMode === 'max' && networkMetrics ? `W: ${edge.weight} | H: ${H}` : edge.weight}
                         </text>
                       </g>
                     );
@@ -753,7 +901,7 @@ const Johnson = () => {
                         onContextMenu={(e) => handleEdgeRightClick(e, edge)}
                         style={{ pointerEvents: "auto", cursor: "pointer" }}
                       >
-                        {edge.weight}
+                        {calcMode === 'max' && networkMetrics ? `W: ${edge.weight} | H: ${H}` : edge.weight}
                       </text>
                     </g>
                   );
@@ -800,6 +948,14 @@ const Johnson = () => {
 
               {/* NODOS */}
               {nodes.map(node => {
+                let early = 0;
+                let late = 0;
+                
+                if (calcMode === 'max' && networkMetrics) {
+                  early = networkMetrics[node.id]?.early || 0;
+                  late = networkMetrics[node.id]?.late || 0;
+                }
+                
                 return (
                   <div key={node.id}>
                     <div
@@ -830,6 +986,19 @@ const Johnson = () => {
                     >
                       {node.label}
                     </div>
+                    
+                    {/* Mostrar [E, L] solo en modo MAX */}
+                    {calcMode === 'max' && networkMetrics && (early > 0 || late > 0) && (
+                      <div
+                        className="absolute text-xs bg-black/80 text-white px-1 py-0.5 rounded whitespace-nowrap"
+                        style={{
+                          left: node.x - 20,
+                          top: node.y - 35,
+                        }}
+                      >
+                        <div>[{early}, {late}]</div>
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -931,194 +1100,6 @@ const Johnson = () => {
               )}
 
             </div>
-
-            {/* MATRICES */}
-            {adjacencyMatrix.length > 0 && (
-              <div className="mt-8 space-y-8">
-                {/* Matriz de Adyacencia */}
-                <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-6 shadow-2xl">
-                  <h2 className="text-xl font-bold text-white mb-4">
-                    Matriz de Adyacencia
-                  </h2>
-                  <div style={{ display: "flex", gap: "40px", alignItems: "flex-start" }}>
-                    <div>
-                      <div className="overflow-x-auto">
-                        <table className="min-w-full">
-                          <thead>
-                            <tr>
-                              <th className="px-4 py-2 text-left text-sm font-medium text-gray-300 border border-white/20 bg-white/10"></th>
-                              {nodes.map(node => (
-                                <th key={node.id} className="px-4 py-2 text-center text-sm font-medium text-gray-300 border border-white/20 bg-white/10">
-                                  {node.label}
-                                </th>
-                              ))}
-                              <th className="px-4 py-2 text-center text-sm font-medium text-cyan-300 border border-white/20 bg-cyan-900/20">Σ</th>
-                              <th className="px-4 py-2 text-center text-sm font-medium text-cyan-300 border border-white/20 bg-cyan-900/20">Count</th>
-                              <th className="px-4 py-2 text-center text-sm font-medium text-cyan-300 border border-white/20 bg-cyan-900/20">Max</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {adjacencyMatrix.map((row, i) => {
-                              // Calcular sumatorias, conteos y máximos para esta fila
-                              const rowSum = row.reduce((acc, val) => acc + (val !== Infinity && val !== 0 ? val : 0), 0);
-                              const rowCount = row.reduce((acc, val) => acc + (val !== Infinity && val !== 0 ? 1 : 0), 0);
-                              const rowMax = row.reduce((acc, val) => (val !== Infinity && val !== 0 && val > acc) ? val : acc, 0);
-                              
-                              return (
-                                <tr key={i}>
-                                  <td className="px-4 py-2 text-sm font-medium text-gray-300 border border-white/20 bg-white/10">
-                                    {nodes[i]?.label}
-                                  </td>
-                                  {row.map((cell, j) => (
-                                    <td
-                                      key={j}
-                                      className={`px-4 py-2 text-center text-sm border border-white/20 ${
-                                        cell === 0 
-                                          ? 'bg-slate-800/50 text-gray-400' 
-                                          : cell === Infinity 
-                                          ? 'bg-slate-900/50 text-gray-500'
-                                          : 'bg-blue-900/30 text-blue-300 font-medium'
-                                      }`}
-                                    >
-                                      {cell === 0 ? '0' : cell === Infinity ? '∞' : cell}
-                                    </td>
-                                  ))}
-                                  <td className="px-4 py-2 text-center text-sm font-medium text-cyan-300 border border-white/20 bg-cyan-900/20">
-                                    {rowSum}
-                                  </td>
-                                  <td className="px-4 py-2 text-center text-sm font-medium text-cyan-300 border border-white/20 bg-cyan-900/20">
-                                    {rowCount}
-                                  </td>
-                                  <td className="px-4 py-2 text-center text-sm font-medium text-cyan-300 border border-white/20 bg-cyan-900/20">
-                                    {rowMax || 0}
-                                  </td>
-                                </tr>
-                              );
-                            })}
-
-                            {/* Filas de sumatorias de columnas */}
-                            <tr>
-                              <td className="px-4 py-2 text-sm font-medium text-cyan-300 border border-white/20 bg-cyan-900/20">Σ</td>
-                              {adjacencyMatrix[0]?.map((_, colIndex) => {
-                                const colSum = adjacencyMatrix.reduce((acc, row) => acc + (row[colIndex] !== Infinity && row[colIndex] !== 0 ? row[colIndex] : 0), 0);
-                                return (
-                                  <td key={colIndex} className="px-4 py-2 text-center text-sm font-medium text-cyan-300 border border-white/20 bg-cyan-900/20">
-                                    {colSum}
-                                  </td>
-                                );
-                              })}
-                              <td className="px-4 py-2 text-center text-sm font-medium text-cyan-300 border border-white/20 bg-cyan-900/20"></td>
-                              <td className="px-4 py-2 text-center text-sm font-medium text-cyan-300 border border-white/20 bg-cyan-900/20"></td>
-                              <td className="px-4 py-2 text-center text-sm font-medium text-cyan-300 border border-white/20 bg-cyan-900/20"></td>
-                            </tr>
-
-                            <tr>
-                              <td className="px-4 py-2 text-sm font-medium text-cyan-300 border border-white/20 bg-cyan-900/20">Count</td>
-                              {adjacencyMatrix[0]?.map((_, colIndex) => {
-                                const colCount = adjacencyMatrix.reduce((acc, row) => acc + (row[colIndex] !== Infinity && row[colIndex] !== 0 ? 1 : 0), 0);
-                                return (
-                                  <td key={colIndex} className="px-4 py-2 text-center text-sm font-medium text-cyan-300 border border-white/20 bg-cyan-900/20">
-                                    {colCount}
-                                  </td>
-                                );
-                              })}
-                              <td className="px-4 py-2 text-center text-sm font-medium text-cyan-300 border border-white/20 bg-cyan-900/20"></td>
-                              <td className="px-4 py-2 text-center text-sm font-medium text-cyan-300 border border-white/20 bg-cyan-900/20"></td>
-                              <td className="px-4 py-2 text-center text-sm font-medium text-cyan-300 border border-white/20 bg-cyan-900/20"></td>
-                            </tr>
-
-                            <tr>
-                              <td className="px-4 py-2 text-sm font-medium text-cyan-300 border border-white/20 bg-cyan-900/20">Max</td>
-                              {adjacencyMatrix[0]?.map((_, colIndex) => {
-                                const colMax = adjacencyMatrix.reduce((acc, row) => {
-                                  const val = row[colIndex];
-                                  return (val !== Infinity && val !== 0 && val > acc) ? val : acc;
-                                }, 0);
-                                return (
-                                  <td key={colIndex} className="px-4 py-2 text-center text-sm font-medium text-cyan-300 border border-white/20 bg-cyan-900/20">
-                                    {colMax || 0}
-                                  </td>
-                                );
-                              })}
-                              <td className="px-4 py-2 text-center text-sm font-medium text-cyan-300 border border-white/20 bg-cyan-900/20"></td>
-                              <td className="px-4 py-2 text-center text-sm font-medium text-cyan-300 border border-white/20 bg-cyan-900/20"></td>
-                              <td className="px-4 py-2 text-center text-sm font-medium text-cyan-300 border border-white/20 bg-cyan-900/20"></td>
-                            </tr>
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                    <div>
-                      <div style={{ marginTop: "10px" }}>
-                        <p className="text-white">
-                          El valor más grande de la suma de las filas es: <span className="text-cyan-300 font-bold">
-                            {Math.max(...adjacencyMatrix.map(row => row.reduce((acc, val) => acc + (val !== Infinity && val !== 0 ? val : 0), 0)))}
-                          </span>
-                        </p>
-                        <p className="text-white mt-2">
-                          El valor más grande de la suma de las columnas es: <span className="text-cyan-300 font-bold">
-                            {Math.max(...(adjacencyMatrix[0]?.map((_, colIndex) => 
-                              adjacencyMatrix.reduce((acc, row) => acc + (row[colIndex] !== Infinity && row[colIndex] !== 0 ? row[colIndex] : 0), 0)
-                            ) || []))}
-                          </span>
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Matriz de Distancias Mínimas */}
-                {distanceMatrix.length > 0 && (
-                  <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-6 shadow-2xl">
-                    <h2 className="text-xl font-bold text-white mb-4">
-                      Matriz de Distancias Mínimas (Algoritmo de Johnson)
-                    </h2>
-                    <div className="overflow-x-auto">
-                      <table className="min-w-full">
-                        <thead>
-                          <tr>
-                            <th className="px-4 py-2 text-left text-sm font-medium text-gray-300 border border-white/20 bg-white/10"></th>
-                            {nodes.map(node => (
-                              <th key={node.id} className="px-4 py-2 text-center text-sm font-medium text-gray-300 border border-white/20 bg-white/10">
-                                {node.label}
-                              </th>
-                            ))}
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {distanceMatrix.map((row, i) => (
-                            <tr key={i}>
-                              <td className="px-4 py-2 text-sm font-medium text-gray-300 border border-white/20 bg-white/10">
-                                {nodes[i]?.label}
-                              </td>
-                              {row.map((cell, j) => (
-                                <td
-                                  key={j}
-                                  className={`px-4 py-2 text-center text-sm border border-white/20 ${
-                                    cell === 0 
-                                      ? 'bg-green-900/30 text-green-300 font-medium'
-                                      : cell === Infinity 
-                                      ? 'bg-slate-900/50 text-gray-500'
-                                      : 'bg-emerald-900/30 text-emerald-300 font-medium'
-                                  }`}
-                                >
-                                  {cell === 0 ? '0' : cell === Infinity ? '∞' : cell}
-                                </td>
-                              ))}
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                    <div className="mt-4 text-sm text-gray-400">
-                      <p>• Los valores en verde muestran las distancias mínimas entre todos los pares de nodos</p>
-                      <p>• ∞ indica que no hay camino disponible entre esos nodos</p>
-                      <p>• 0 en la diagonal representa la distancia de un nodo a sí mismo</p>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
           </div>
         </div>
       </div>
