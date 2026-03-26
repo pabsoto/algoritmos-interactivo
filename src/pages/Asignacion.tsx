@@ -850,12 +850,32 @@ const Asignacion = () => {
                   >
                     <path d="M0,0 L0,6 L9,3 z" fill="#ffffff" />
                   </marker>
+                  <marker
+                    id="arrow-optimal"
+                    markerWidth="10"
+                    markerHeight="10"
+                    refX="10"
+                    refY="3"
+                    orient="auto"
+                  >
+                    <path d="M0,0 L0,6 L9,3 z" fill="#22c55e" />
+                  </marker>
                 </defs>
 
-                {edges.map((edge, index) => {
+                {(() => {
+                  const agents = nodes.filter(n => n.type === 'agent');
+                  const tasks = nodes.filter(n => n.type === 'task');
+                  
+                  return edges.map((edge, index) => {
                   const from = nodes.find(n => n.id === edge.from);
                   const to = nodes.find(n => n.id === edge.to);
                   if (!from || !to) return null;
+
+                  // Verificar si esta arista forma parte de la asignación óptima
+                  const isOptimal = finalAssignment.some(assign => 
+                    edge.from === agents[assign.row]?.id && 
+                    edge.to === tasks[assign.col]?.id
+                  );
 
                   
                   if (edge.from === edge.to) {
@@ -890,18 +910,18 @@ const Asignacion = () => {
                                 ${control2X} ${control2Y},
                                 ${endX} ${endY}`}
                           fill="none"
-                          stroke="#94a3b8"
-                          strokeWidth="3"
+                          stroke={isOptimal ? "#22c55e" : "#94a3b8"}
+                          strokeWidth={isOptimal ? "4" : "3"}
                           markerEnd={
                             edge.type === "directed"
-                              ? "url(#arrow-small)"
+                              ? isOptimal ? "url(#arrow-optimal)" : "url(#arrow-small)"
                               : undefined
                           }
                         />
                         <text
                           x={from.x}
                           y={from.y - loopHeight - 8}
-                          fill="#f8fafc"
+                          fill={isOptimal ? "#22c55e" : "#f8fafc"}
                           fontSize="14"
                           fontWeight="bold"
                           textAnchor="middle"
@@ -960,18 +980,18 @@ const Asignacion = () => {
                       <path
                         d={path}
                         fill="none"
-                        stroke="#94a3b8"
-                        strokeWidth="3"
+                        stroke={isOptimal ? "#22c55e" : "#94a3b8"}
+                        strokeWidth={isOptimal ? "4" : "3"}
                         markerEnd={
                           edge.type === "directed"
-                            ? "url(#arrow-normal)"
+                            ? isOptimal ? "url(#arrow-optimal)" : "url(#arrow-normal)"
                             : undefined
                         }
                       />
                       <text
                         x={textX}
                         y={textY}
-                        fill="#f8fafc"
+                        fill={isOptimal ? "#22c55e" : "#f8fafc"}
                         fontSize="14"
                         fontWeight="bold"
                         textAnchor="middle"
@@ -982,7 +1002,8 @@ const Asignacion = () => {
                       </text>
                     </g>
                   );
-                })}
+                });
+                })()}
               </svg>
 
               {/* NODOS */}
@@ -1003,10 +1024,10 @@ const Asignacion = () => {
                     // No automatic loop creation
                     handleNodeClick(node);
                   }}
-                  className="absolute w-12 h-12 rounded-full flex items-center justify-center text-sm font-bold cursor-pointer transition-all duration-300 shadow-2xl hover:scale-110"
+                  className="absolute h-14 rounded-full flex items-center justify-center text-center text-sm font-bold cursor-pointer transition-all duration-300 shadow-2xl hover:scale-110 min-w-[3.5rem] px-3 whitespace-nowrap"
                   style={{
-                    left: node.x - 24,
-                    top: node.y - 24,
+                    left: node.x - 28, // Ajustado para centrar mejor
+                    top: node.y - 28,  // Ajustado para centrar mejor
                     background:
                       node.type === "agent"
                         ? "linear-gradient(135deg,#10b981,#059669)"
