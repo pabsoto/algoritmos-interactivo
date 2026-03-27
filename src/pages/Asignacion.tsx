@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import Layout from "@/components/Layout";
-import { MousePointer2 } from "lucide-react";
+import { MousePointer2, Upload, Download, Trash2, TrendingDown, TrendingUp } from "lucide-react";
 
 type NodeType = {
   id: number;
@@ -719,15 +719,43 @@ const Asignacion = () => {
   return (
     <Layout>
       <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 py-10 px-6">
+        {/* HEADER PROFESIONAL */}
+        <div className="w-full bg-slate-900 border-b border-slate-700 -mx-6 -mt-10 mb-6">
+          <div className="max-w-7xl mx-auto w-full px-6 py-4 flex justify-between items-center">
+            <h1 className="text-xl font-bold text-white">Algoritmo de Asignación</h1>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-slate-300 bg-transparent rounded-md transition-all duration-200 hover:bg-slate-800 hover:text-white"
+              >
+                <Upload size={16} />
+                <span>Importar Grafo</span>
+              </button>
+              <button
+                onClick={handleExportGraph}
+                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-slate-300 bg-transparent rounded-md transition-all duration-200 hover:bg-slate-800 hover:text-white"
+              >
+                <Download size={16} />
+                <span>Exportar Grafo</span>
+              </button>
+              <button
+                onClick={clearGraph}
+                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-red-400 bg-transparent rounded-md transition-all duration-200 hover:bg-red-500/10 hover:text-red-300"
+              >
+                <Trash2 size={16} />
+                <span>Limpiar Todo</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
         <div className="max-w-7xl mx-auto flex gap-8">
 
           {/* PANEL */}
-          <aside className="w-80 space-y-6">
-            <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-6 shadow-2xl">
-              <h2 className="text-xl font-bold text-white mb-4">
-                Estadísticas
-              </h2>
-
+          <aside className="w-64 space-y-4">
+            {/* TARJETA SUPERIOR - ESTADÍSTICAS */}
+            <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-4">
+              <h2 className="text-xs font-semibold text-slate-400 mb-3 uppercase tracking-wider">Estadísticas</h2>
               <div className="space-y-2 text-gray-300 text-sm">
                 <div className="flex justify-between">
                   <span>Agentes</span>
@@ -744,40 +772,26 @@ const Asignacion = () => {
               </div>
             </div>
 
-            <button
-              onClick={clearGraph}
-              className="w-full py-3 rounded-2xl font-semibold bg-red-600 hover:bg-red-700 text-white shadow-lg transition"
-            >
-              Limpiar todo
-            </button>
-
-            <button
-              onClick={() => generateAssignmentMatrix("minimize")}
-              className="w-full py-3 rounded-2xl font-semibold bg-blue-600 hover:bg-blue-700 text-white shadow-lg transition"
-            >
-              Generar matriz (Minimizar)
-            </button>
-
-            <button
-              onClick={() => generateAssignmentMatrix("maximize")}
-              className="w-full py-3 rounded-2xl font-semibold bg-purple-600 hover:bg-purple-700 text-white shadow-lg transition"
-            >
-              Generar matriz (Maximizar)
-            </button>
-
-            <button
-              onClick={handleExportGraph}
-              className="w-full py-3 rounded-2xl font-semibold bg-green-600 hover:bg-green-700 text-white shadow-lg transition"
-            >
-              Exportar Grafo
-            </button>
-
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              className="w-full py-3 rounded-2xl font-semibold bg-orange-600 hover:bg-orange-700 text-white shadow-lg transition"
-            >
-              Importar Grafo
-            </button>
+            {/* TARJETA INFERIOR - ACCIONES DEL ALGORITMO */}
+            <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-4">
+              <h2 className="text-xs font-semibold text-slate-400 mb-3 uppercase tracking-wider">Acciones del Algoritmo</h2>
+              <div className="space-y-3">
+                <button
+                  onClick={() => generateAssignmentMatrix("minimize")}
+                  className="w-full flex justify-center items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-lg shadow-sm transition-all duration-200"
+                >
+                  <TrendingDown size={18} />
+                  <span>Minimizar</span>
+                </button>
+                <button
+                  onClick={() => generateAssignmentMatrix("maximize")}
+                  className="w-full flex justify-center items-center gap-2 px-4 py-2 bg-violet-600 hover:bg-violet-500 text-white font-semibold rounded-lg shadow-sm transition-all duration-200"
+                >
+                  <TrendingUp size={18} />
+                  <span>Maximizar</span>
+                </button>
+              </div>
+            </div>
 
             <input
               type="file"
