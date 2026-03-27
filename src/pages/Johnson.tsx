@@ -59,94 +59,103 @@ const Johnson = () => {
 
     const metrics: Record<number, {early: number, late: number, hValues: Record<string, number>}> = {};
     
-    // Initialize all nodes with early=0, late=Infinity, empty hValues
+    // Initialize all nodes with early=0, late=0, empty hValues
     nodes.forEach(node => {
-      metrics[node.id] = { early: 0, late: Infinity, hValues: {} };
+      metrics[node.id] = { early: 0, late: 0, hValues: {} };
     });
 
-    // FORWARD PASS - Calculate Early Times
-    // Find start nodes (no incoming edges)
-    const startNodes = nodes.filter(n => 
-      !edges.some(e => e.to === n.id)
-    );
+    // PASO 1: FORWARD PASS - Calcular Tiempos Early con Ordenamiento Topológico
     
-    // Set early times for start nodes to 0
-    startNodes.forEach(n => {
-      metrics[n.id].early = 0;
+    // Calcular in-degree (grado de entrada) de todos los nodos
+    const inDegree: Record<number, number> = {};
+    nodes.forEach(node => {
+      inDegree[node.id] = 0;
     });
-
-    // Iterative forward pass with safety limit
-    let maxIterations = nodes.length * 2;
-    let changed = true;
-    let iterations = 0;
-    
-    while (changed && iterations < maxIterations) {
-      changed = false;
-      iterations++;
-      
-      edges.forEach(edge => {
-        const fromNode = metrics[edge.from];
-        const toNode = metrics[edge.to];
-        
-        if (fromNode.early !== undefined && toNode.early !== undefined) {
-          const candidate = fromNode.early + edge.weight;
-          if (candidate > toNode.early) {
-            toNode.early = candidate;
-            changed = true;
-          }
-        }
-      });
-    }
-
-    // BACKWARD PASS - Calculate Late Times
-    // Find project duration (max early time)
-    const projectDuration = Math.max(...Object.values(metrics).map(m => m.early));
-    
-    // Find end nodes (no outgoing edges)
-    const endNodes = nodes.filter(n => 
-      !edges.some(e => e.from === n.id)
-    );
-    
-    // Set late times for end nodes to project duration
-    endNodes.forEach(n => {
-      metrics[n.id].late = projectDuration;
+    edges.forEach(edge => {
+      inDegree[edge.to] = (inDegree[edge.to] || 0) + 1;
     });
-
-    // Iterative backward pass with safety limit
-    changed = true;
-    iterations = 0;
     
-    while (changed && iterations < maxIterations) {
-      changed = false;
-      iterations++;
-      
-      edges.forEach(edge => {
-        const fromNode = metrics[edge.from];
-        const toNode = metrics[edge.to];
-        
-        if (fromNode.late !== Infinity && toNode.late !== undefined) {
-          const candidate = toNode.late - edge.weight;
-          if (candidate < fromNode.late) {
-            fromNode.late = candidate;
-            changed = true;
-          }
-        }
-      });
-    }
-
-    // Handle nodes that weren't reached in backward pass
-    Object.keys(metrics).forEach(nodeId => {
-      const id = parseInt(nodeId);
-      if (metrics[id].late === Infinity) {
-        metrics[id].late = metrics[id].early;
+    // Crear cola con nodos cuyo in-degree sea 0
+    const queue: number[] = [];
+    const topologicalOrder: number[] = [];
+    
+    nodes.forEach(node => {
+      if (inDegree[node.id] === 0) {
+        queue.push(node.id);
       }
     });
+    
+    // Procesar nodos en orden topológico
+    while (queue.length > 0) {
+      const currentId = queue.shift()!;
+      topologicalOrder.push(currentId);
+      
+      // Por cada arista que sale del nodo actual
+      const outgoingEdges = edges.filter(e => e.from === currentId);
+      
+      outgoingEdges.forEach(edge => {
+        const currentNode = metrics[currentId];
+        const destinationNode = metrics[edge.to];
+        
+        // Actualizar tiempo del destino
+        destinationNode.early = Math.max(destinationNode.early, currentNode.early + edge.weight);
+        
+        // Restar 1 al in-degree del destino
+        inDegree[edge.to]--;
+        
+        // Si el in-degree llega a 0, meterlo en la cola
+        if (inDegree[edge.to] === 0) {
+          queue.push(edge.to);
+        }
+      });
+    }
 
-    // CALCULATE H VALUES (SLACK) FOR EACH EDGE
+    // DETECCIÓN DE CICLOS - Validar si todos los nodos fueron procesados
+    if (topologicalOrder.length !== nodes.length) {
+      alert("Error: El grafo contiene un ciclo. Las tareas no pueden depender de sí mismas.");
+      return; // Detener el cálculo si hay un ciclo
+    }
+
+    // PASO 2: BACKWARD PASS - Calcular Tiempos Late
+    
+    // Encontrar el tiempo máximo del proyecto
+    const maxEarly = Math.max(...nodes.map(n => metrics[n.id].early));
+    
+    // Inicializar el late de todos los nodos con maxEarly
+    nodes.forEach(node => {
+      metrics[node.id].late = maxEarly;
+    });
+    
+    // Recorrer los nodos usando el orden topológico inverso
+    for (let i = topologicalOrder.length - 1; i >= 0; i--) {
+      const nodeId = topologicalOrder[i];
+      const currentNode = metrics[nodeId];
+      
+      // Revisar aristas salientes hacia los destinos
+      const outgoingEdges = edges.filter(e => e.from === nodeId);
+      
+      outgoingEdges.forEach(edge => {
+        const destinationNode = metrics[edge.to];
+        const candidateLate = destinationNode.late - edge.weight;
+        
+        // Actualizar late del nodo actual
+        currentNode.late = Math.min(currentNode.late, candidateLate);
+      });
+    }
+
+    // PASO 3: CALCULAR ARISTAS CRÍTICAS
+    
+    // Una arista es crítica SOLO si: (destino.late - origen.early - arista.weight) === 0
     edges.forEach(edge => {
       const edgeKey = `${edge.from}-${edge.to}`;
       const H = metrics[edge.to].late - metrics[edge.from].early - edge.weight;
       metrics[edge.from].hValues[edgeKey] = H;
+    });
+
+    // Actualizar los nodos con los valores calculados
+    nodes.forEach(node => {
+      node.early = metrics[node.id].early;
+      node.late = metrics[node.id].late;
     });
 
     setNetworkMetrics(metrics);
@@ -548,157 +557,70 @@ const Johnson = () => {
                   <span className="font-semibold text-white">{edges.length}</span>
                 </div>
               </div>
-            </div>
 
-            <button
-              onClick={clearGraph}
-              className="w-full py-3 rounded-2xl font-semibold bg-red-600 hover:bg-red-700 text-white shadow-lg transition"
-            >
-              Limpiar todo
-            </button>
+              <div className="mt-6 space-y-2">
+                <button
+                  onClick={clearGraph}
+                  className="w-full py-3 rounded-2xl font-semibold bg-red-600 hover:bg-red-700 text-white shadow-lg transition"
+                >
+                  Limpiar todo
+                </button>
 
-            <button
-              onClick={handleExportGraph}
-              className="w-full py-3 rounded-2xl font-semibold bg-green-600 hover:bg-green-700 text-white shadow-lg transition"
-            >
-              Exportar Grafo
-            </button>
+                <button
+                  onClick={handleExportGraph}
+                  className="w-full py-3 rounded-2xl font-semibold bg-green-600 hover:bg-green-700 text-white shadow-lg transition"
+                >
+                  Exportar Grafo
+                </button>
 
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              className="w-full py-3 rounded-2xl font-semibold bg-orange-600 hover:bg-orange-700 text-white shadow-lg transition"
-            >
-              Importar Grafo
-            </button>
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="w-full py-3 rounded-2xl font-semibold bg-orange-600 hover:bg-orange-700 text-white shadow-lg transition"
+                >
+                  Importar Grafo
+                </button>
 
-            <button
-              onClick={maximizeCriticalPath}
-              className="w-full py-3 rounded-2xl font-semibold bg-purple-600 hover:bg-purple-700 text-white shadow-lg transition"
-            >
-              Maximizar (Ruta Crítica)
-            </button>
+                <button
+                  onClick={maximizeCriticalPath}
+                  className="w-full py-3 rounded-2xl font-semibold bg-purple-600 hover:bg-purple-700 text-white shadow-lg transition"
+                >
+                  Maximizar (Ruta Crítica)
+                </button>
 
-            <button
-              onClick={minimizeShortestPath}
-              className="w-full py-3 rounded-2xl font-semibold bg-green-600 hover:bg-green-700 text-white shadow-lg transition"
-            >
-              Minimizar (Camino Más Corto)
-            </button>
+                <button
+                  onClick={minimizeShortestPath}
+                  className="w-full py-3 rounded-2xl font-semibold bg-green-600 hover:bg-green-700 text-white shadow-lg transition"
+                >
+                  Minimizar (Camino Más Corto)
+                </button>
 
-            <input
-              type="file"
-              accept=".json"
-              ref={fileInputRef}
-              style={{ display: "none" }}
-              onChange={handleImportGraph}
-            />
-
-            <div style={{
-              marginTop: "12px",
-              fontSize: "14px",
-              color: "white",
-              lineHeight: "1.5"
-            }}>
-              <b>Cómo usar el panel de grafos:</b><br/>
-              • Click en el panel → crear un nodo<br/>
-              • Click en un nodo y luego en otro → crear conexión dirigida<br/>
-              • Click derecho en un nodo → editar nombre<br/>
-              • Click derecho en una arista → editar valor<br/>
-              • Los cambios se reflejan automáticamente en la matriz de adyacencia
-            </div>
-
-            {/* PANEL DE RESULTADOS */}
-            {calcMode && (
-              <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-6 shadow-2xl mt-6">
-                {calcMode === 'min' ? (
-                  // Modo MIN: Camino Más Corto
-                  <div>
-                    <h3 className="text-lg font-bold text-emerald-400 mb-4">
-                      El camino más corto es:
-                    </h3>
-                    <div className="text-emerald-300 font-medium">
-                      {shortestPathEdges.length > 0 ? (
-                        <div className="flex flex-wrap items-center gap-2">
-                          {shortestPathEdges.map((edgeIndex, i) => {
-                            const edge = edges[edgeIndex];
-                            if (!edge) return null;
-                            
-                            const fromNode = nodes.find(n => n.id === edge.from);
-                            const toNode = nodes.find(n => n.id === edge.to);
-                            
-                            if (!fromNode || !toNode) return null;
-                            
-                            return (
-                              <div key={i} className="flex items-center gap-2">
-                                {i > 0 && <span className="text-emerald-400">→</span>}
-                                <span className="text-white bg-emerald-900/30 px-2 py-1 rounded border border-emerald-500/30">
-                                  {fromNode.label}
-                                </span>
-                                <span className="text-emerald-400">→</span>
-                                <span className="text-white bg-emerald-900/30 px-2 py-1 rounded border border-emerald-500/30">
-                                  {toNode.label}
-                                </span>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      ) : (
-                        <p className="text-gray-400">No se encontró un camino válido</p>
-                      )}
-                    </div>
-                  </div>
-                ) : (
-                  // Modo MAX: Ruta Crítica
-                  <div>
-                    <h3 className="text-lg font-bold text-rose-400 mb-4">
-                      El camino más largo (Ruta Crítica) es:
-                    </h3>
-                    <div className="text-rose-300 font-medium space-y-2">
-                      {networkMetrics ? (
-                        <div className="space-y-2">
-                          {edges.map((edge, index) => {
-                            const edgeKey = `${edge.from}-${edge.to}`;
-                            const H = networkMetrics[edge.from]?.hValues?.[edgeKey] || 0;
-                            
-                            // Solo mostrar aristas con holgura 0 (ruta crítica)
-                            if (H !== 0) return null;
-                            
-                            const fromNode = nodes.find(n => n.id === edge.from);
-                            const toNode = nodes.find(n => n.id === edge.to);
-                            
-                            if (!fromNode || !toNode) return null;
-                            
-                            return (
-                              <div key={index} className="flex items-center justify-between bg-rose-900/30 px-3 py-2 rounded border border-rose-500/30">
-                                <span className="text-white">
-                                  {fromNode.label} → {toNode.label}
-                                </span>
-                                <span className="text-rose-400 font-semibold">
-                                  Peso: {edge.weight}
-                                </span>
-                              </div>
-                            );
-                          })}
-                          {edges.filter((edge) => {
-                            const edgeKey = `${edge.from}-${edge.to}`;
-                            const H = networkMetrics[edge.from]?.hValues?.[edgeKey] || 0;
-                            return H === 0;
-                          }).length === 0 && (
-                            <p className="text-gray-400">No se encontró una ruta crítica válida</p>
-                          )}
-                        </div>
-                      ) : (
-                        <p className="text-gray-400">Calculando ruta crítica...</p>
-                      )}
-                    </div>
-                  </div>
-                )}
+                <input
+                  type="file"
+                  accept=".json"
+                  ref={fileInputRef}
+                  style={{ display: "none" }}
+                  onChange={handleImportGraph}
+                />
               </div>
-            )}
+
+              <div style={{
+                marginTop: "12px",
+                fontSize: "14px",
+                color: "white",
+                lineHeight: "1.5"
+              }}>
+                <b>Cómo usar el panel de grafos:</b><br/>
+                • Click en el panel → crear un nodo<br/>
+                • Click en un nodo y luego en otro → crear conexión dirigida<br/>
+                • Click derecho en un nodo → editar nombre<br/>
+                • Click derecho en una arista → editar valor<br/>
+                • Los cambios se reflejan automáticamente en la matriz de adyacencia
+              </div>
+            </div>
           </aside>
 
           {/* CANVAS */}
-          <div className="flex-1">
+          <div className="flex-1 flex flex-col gap-8">
             <div
               ref={containerRef}
               onClick={handleCanvasClick}
@@ -1100,6 +1022,141 @@ const Johnson = () => {
               )}
 
             </div>
+
+            {/* PANEL DE RESULTADOS - DENTRO DEL FLEX-1 */}
+            {calcMode && (
+              <div 
+                className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-8 shadow-2xl"
+                style={{
+                  background: "hsl(0 0% 100% / 0.08)",
+                  borderColor: "hsl(0 0% 100% / 0.14)",
+                  backdropFilter: "blur(12px)",
+                }}
+              >
+                {calcMode === 'min' ? (
+                  <div>
+                    <h2 className="text-2xl font-bold text-emerald-400 mb-6 text-center">Camino Más Corto</h2>
+                    {shortestPathEdges.length > 0 ? (
+                      (() => {
+                        const pathNodes: string[] = [];
+                        shortestPathEdges.forEach((edgeIndex) => {
+                          const edge = edges[edgeIndex];
+                          if (!edge) return;
+                          const fromNode = nodes.find(n => n.id === edge.from);
+                          const toNode = nodes.find(n => n.id === edge.to);
+                          if (fromNode && toNode) {
+                            if (pathNodes.length === 0) pathNodes.push(fromNode.label);
+                            pathNodes.push(toNode.label);
+                          }
+                        });
+                        return (
+                          <>
+                            <div className="text-center mb-6">
+                              <div className="flex flex-wrap items-center justify-center gap-3 text-3xl font-bold">
+                                {pathNodes.map((node, index) => (
+                                  <div key={index} className="flex items-center">
+                                    {index > 0 && <span className="text-emerald-400 mx-2">→</span>}
+                                    <span className="bg-emerald-900/30 px-4 py-2 rounded-full border border-emerald-500/30 text-emerald-300">{node}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                            <div className="text-center mb-8">
+                              <div className="inline-block bg-emerald-500/20 px-6 py-3 rounded-full border border-emerald-500/30">
+                                <span className="text-emerald-400 font-bold text-2xl">
+                                  Peso Total: {shortestPathEdges.reduce((total, edgeIndex) => total + (edges[edgeIndex]?.weight || 0), 0)}
+                                </span>
+                              </div>
+                            </div>
+                            <div>
+                              <h3 className="text-lg font-semibold text-emerald-400 mb-4">Desglose de la ruta:</h3>
+                              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                                {shortestPathEdges.map((edgeIndex, i) => {
+                                  const edge = edges[edgeIndex];
+                                  if (!edge) return null;
+                                  const fromNode = nodes.find(n => n.id === edge.from);
+                                  const toNode = nodes.find(n => n.id === edge.to);
+                                  if (!fromNode || !toNode) return null;
+                                  return (
+                                    <div key={i} className="bg-emerald-900/20 px-3 py-2 rounded-lg border border-emerald-500/20 text-emerald-300 text-sm font-medium">
+                                      {fromNode.label} → {toNode.label} ({edge.weight})
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          </>
+                        );
+                      })()
+                    ) : (
+                      <p className="text-gray-400 text-center text-lg">No se encontró un camino válido</p>
+                    )}
+                  </div>
+                ) : (
+                  <div>
+                    <h2 className="text-2xl font-bold text-rose-400 mb-6 text-center">Ruta Crítica</h2>
+                    {networkMetrics ? (
+                      (() => {
+                        const criticalEdges = edges.filter((edge) => {
+                          const H = networkMetrics[edge.from]?.hValues?.[`${edge.from}-${edge.to}`] || 0;
+                          return H === 0;
+                        });
+                        if (criticalEdges.length === 0) {
+                          return <p className="text-gray-400 text-center text-lg">No se encontró una ruta crítica válida</p>;
+                        }
+                        const pathNodes: string[] = [];
+                        criticalEdges.forEach(edge => {
+                          const fromNode = nodes.find(n => n.id === edge.from);
+                          const toNode = nodes.find(n => n.id === edge.to);
+                          if (fromNode && toNode) {
+                            if (pathNodes.length === 0) pathNodes.push(fromNode.label);
+                            pathNodes.push(toNode.label);
+                          }
+                        });
+                        return (
+                          <>
+                            <div className="text-center mb-6">
+                              <div className="flex flex-wrap items-center justify-center gap-3 text-3xl font-bold">
+                                {[...new Set(pathNodes)].map((node, index) => (
+                                  <div key={index} className="flex items-center">
+                                    {index > 0 && <span className="text-rose-400 mx-2">→</span>}
+                                    <span className="bg-rose-900/30 px-4 py-2 rounded-full border border-rose-500/30 text-rose-300">{node}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                            <div className="text-center mb-8">
+                              <div className="inline-block bg-rose-500/20 px-6 py-3 rounded-full border border-rose-500/30">
+                                <span className="text-rose-400 font-bold text-2xl">
+                                  Duración Total: {criticalEdges.reduce((total, edge) => total + edge.weight, 0)}
+                                </span>
+                              </div>
+                            </div>
+                            <div>
+                              <h3 className="text-lg font-semibold text-rose-400 mb-4">Desglose de la ruta crítica:</h3>
+                              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                                {criticalEdges.map((edge, index) => {
+                                  const fromNode = nodes.find(n => n.id === edge.from);
+                                  const toNode = nodes.find(n => n.id === edge.to);
+                                  if (!fromNode || !toNode) return null;
+                                  return (
+                                    <div key={index} className="bg-rose-900/20 px-3 py-2 rounded-lg border border-rose-500/20 text-rose-300 text-sm font-medium">
+                                      {fromNode.label} → {toNode.label} ({edge.weight})
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          </>
+                        );
+                      })()
+                    ) : (
+                      <p className="text-gray-400 text-center text-lg">Calculando ruta crítica...</p>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>
