@@ -43,6 +43,9 @@ const Asignacion = () => {
   const [nodeNameInput, setNodeNameInput] = useState("");
   const [editingEdge, setEditingEdge] = useState<EdgeType | null>(null);
   const [edgeValueInput, setEdgeValueInput] = useState("");
+  
+  // Estado para hover en aristas
+  const [hoveredEdgeIndex, setHoveredEdgeIndex] = useState<number | null>(null);
 
   // Estado para panel de selección de tipo de nodo
   const [showNodeTypeMenu, setShowNodeTypeMenu] = useState(false);
@@ -860,6 +863,16 @@ const Asignacion = () => {
                   >
                     <path d="M0,0 L0,6 L9,3 z" fill="#22c55e" />
                   </marker>
+                  <marker
+                    id="arrow-hover"
+                    markerWidth="10"
+                    markerHeight="10"
+                    refX="10"
+                    refY="3"
+                    orient="auto"
+                  >
+                    <path d="M0,0 L0,6 L9,3 z" fill="#a7f3d0" />
+                  </marker>
                 </defs>
 
                 {(() => {
@@ -902,7 +915,13 @@ const Asignacion = () => {
                           e.preventDefault();
                           handleEdgeRightClick(e, edge);
                         }}
-                        style={{ pointerEvents: "auto", cursor: "pointer" }}
+                        onMouseEnter={() => setHoveredEdgeIndex(index)}
+                        onMouseLeave={() => setHoveredEdgeIndex(null)}
+                        style={{ 
+                          pointerEvents: "auto", 
+                          cursor: "pointer",
+                          opacity: hoveredEdgeIndex !== null && hoveredEdgeIndex !== index ? 0.2 : 1
+                        }}
                       >
                         <path
                           d={`M ${startX} ${startY}
@@ -910,23 +929,28 @@ const Asignacion = () => {
                                 ${control2X} ${control2Y},
                                 ${endX} ${endY}`}
                           fill="none"
-                          stroke={isOptimal ? "#22c55e" : "#94a3b8"}
-                          strokeWidth={isOptimal ? "4" : "3"}
+                          stroke={hoveredEdgeIndex === index ? "#a7f3d0" : (isOptimal ? "#22c55e" : "#94a3b8")}
+                          strokeWidth={hoveredEdgeIndex === index ? 5 : (isOptimal ? 4 : 3)}
                           markerEnd={
                             edge.type === "directed"
-                              ? isOptimal ? "url(#arrow-optimal)" : "url(#arrow-small)"
+                              ? hoveredEdgeIndex === index ? "url(#arrow-hover)" : (isOptimal ? "url(#arrow-optimal)" : "url(#arrow-small)")
                               : undefined
                           }
+                          style={{ transition: 'all 0.3s ease-in-out' }}
                         />
                         <text
                           x={from.x}
                           y={from.y - loopHeight - 8}
-                          fill={isOptimal ? "#22c55e" : "#f8fafc"}
+                          fill={hoveredEdgeIndex === index ? "#a7f3d0" : (isOptimal ? "#22c55e" : "#f8fafc")}
                           fontSize="14"
                           fontWeight="bold"
                           textAnchor="middle"
                           onContextMenu={(e) => handleEdgeRightClick(e, edge)}
-                          style={{ pointerEvents: "auto", cursor: "pointer" }}
+                          style={{ 
+                            pointerEvents: "auto", 
+                            cursor: "pointer",
+                            transition: 'all 0.3s ease-in-out'
+                          }}
                         >
                           {edge.weight}
                         </text>
@@ -975,28 +999,39 @@ const Asignacion = () => {
                         e.preventDefault();
                         handleEdgeRightClick(e, edge);
                       }}
-                      style={{ pointerEvents: "auto", cursor: "pointer" }}
+                      onMouseEnter={() => setHoveredEdgeIndex(index)}
+                      onMouseLeave={() => setHoveredEdgeIndex(null)}
+                      style={{ 
+                        pointerEvents: "auto", 
+                        cursor: "pointer",
+                        opacity: hoveredEdgeIndex !== null && hoveredEdgeIndex !== index ? 0.2 : 1
+                      }}
                     >
                       <path
                         d={path}
                         fill="none"
-                        stroke={isOptimal ? "#22c55e" : "#94a3b8"}
-                        strokeWidth={isOptimal ? "4" : "3"}
+                        stroke={hoveredEdgeIndex === index ? "#a7f3d0" : (isOptimal ? "#22c55e" : "#94a3b8")}
+                        strokeWidth={hoveredEdgeIndex === index ? 5 : (isOptimal ? 4 : 3)}
                         markerEnd={
                           edge.type === "directed"
-                            ? isOptimal ? "url(#arrow-optimal)" : "url(#arrow-normal)"
+                            ? hoveredEdgeIndex === index ? "url(#arrow-hover)" : (isOptimal ? "url(#arrow-optimal)" : "url(#arrow-normal)")
                             : undefined
                         }
+                        style={{ transition: 'all 0.3s ease-in-out' }}
                       />
                       <text
                         x={textX}
                         y={textY}
-                        fill={isOptimal ? "#22c55e" : "#f8fafc"}
+                        fill={hoveredEdgeIndex === index ? "#a7f3d0" : (isOptimal ? "#22c55e" : "#f8fafc")}
                         fontSize="14"
                         fontWeight="bold"
                         textAnchor="middle"
                         onContextMenu={(e) => handleEdgeRightClick(e, edge)}
-                        style={{ pointerEvents: "auto", cursor: "pointer" }}
+                        style={{ 
+                          pointerEvents: "auto", 
+                          cursor: "pointer",
+                          transition: 'all 0.3s ease-in-out'
+                        }}
                       >
                         {edge.weight}
                       </text>

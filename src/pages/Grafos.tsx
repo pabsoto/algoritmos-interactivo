@@ -43,6 +43,9 @@ const Grafos = () => {
   const [editingEdge, setEditingEdge] = useState<EdgeType | null>(null);
   const [edgeValueInput, setEdgeValueInput] = useState("");
 
+  // Estado para hover en aristas
+  const [hoveredEdgeIndex, setHoveredEdgeIndex] = useState<number | null>(null);
+
   /* ---------- MEDIR CONTENEDOR ---------- */
   useEffect(() => {
     const updateSize = () => {
@@ -470,25 +473,14 @@ const Grafos = () => {
                 style={{ pointerEvents: "none" }}
               >
                 <defs>
-                  <marker
-                    id="arrow-small"
-                    markerWidth="6"
-                    markerHeight="6"
-                    refX="6"
-                    refY="3"
-                    orient="auto"
-                  >
-                    <path d="M0,0 L0,6 L5,3 z" fill="#ffffff" />
+                  <marker id="arrow-small" markerWidth="6" markerHeight="6" refX="6" refY="3" orient="auto">
+                    <path d="M0,0 L0,6 L5,3 z" fill="#ffffff" style={{ transition: 'all 0.3s ease-in-out' }} />
                   </marker>
-                  <marker
-                    id="arrow-normal"
-                    markerWidth="10"
-                    markerHeight="10"
-                    refX="10"
-                    refY="3"
-                    orient="auto"
-                  >
-                    <path d="M0,0 L0,6 L9,3 z" fill="#ffffff" />
+                  <marker id="arrow-normal" markerWidth="10" markerHeight="10" refX="10" refY="3" orient="auto">
+                    <path d="M0,0 L0,6 L9,3 z" fill="#ffffff" style={{ transition: 'all 0.3s ease-in-out' }} />
+                  </marker>
+                  <marker id="arrow-hover" markerWidth="10" markerHeight="10" refX="10" refY="3" orient="auto">
+                    <path d="M0,0 L0,6 L9,3 z" fill="#a7f3d0" style={{ transition: 'all 0.3s ease-in-out' }} />
                   </marker>
                 </defs>
 
@@ -496,6 +488,14 @@ const Grafos = () => {
                   const from = nodes.find(n => n.id === edge.from);
                   const to = nodes.find(n => n.id === edge.to);
                   if (!from || !to) return null;
+
+                  // Lógica centralizada para los estilos hover smooth
+                  const isHovered = hoveredEdgeIndex === index;
+                  const isOtherHovered = hoveredEdgeIndex !== null && hoveredEdgeIndex !== index;
+                  const opacity = isOtherHovered ? 0.2 : 1;
+                  const strokeColor = isHovered ? "#a7f3d0" : "#94a3b8";
+                  const strokeW = isHovered ? 5 : 3;
+                  const textColor = isHovered ? "#a7f3d0" : "#f8fafc";
 
                   if (edge.from === edge.to) {
                     const nodeRadius = 24;
@@ -521,31 +521,31 @@ const Grafos = () => {
                           e.preventDefault();
                           handleEdgeRightClick(e, edge);
                         }}
-                        style={{ pointerEvents: "auto", cursor: "pointer" }}
+                        onMouseEnter={() => setHoveredEdgeIndex(index)}
+                        onMouseLeave={() => setHoveredEdgeIndex(null)}
+                        style={{ 
+                          pointerEvents: "auto", 
+                          cursor: "pointer",
+                          opacity: opacity,
+                          transition: 'opacity 0.3s ease-in-out'
+                        }}
                       >
                         <path
-                          d={`M ${startX} ${startY}
-                              C ${control1X} ${control1Y},
-                                ${control2X} ${control2Y},
-                                ${endX} ${endY}`}
+                          d={`M ${startX} ${startY} C ${control1X} ${control1Y}, ${control2X} ${control2Y}, ${endX} ${endY}`}
                           fill="none"
-                          stroke="#94a3b8"
-                          strokeWidth="3"
-                          markerEnd={
-                            edge.type === "directed"
-                              ? "url(#arrow-small)"
-                              : undefined
-                          }
+                          stroke={strokeColor}
+                          strokeWidth={strokeW}
+                          style={{ transition: 'all 0.3s ease-in-out' }}
+                          markerEnd={edge.type === "directed" ? (isHovered ? "url(#arrow-hover)" : "url(#arrow-small)") : undefined}
                         />
                         <text
                           x={from.x}
                           y={from.y - loopHeight - 8}
-                          fill="#f8fafc"
+                          fill={textColor}
                           fontSize="14"
                           fontWeight="bold"
                           textAnchor="middle"
-                          onContextMenu={(e) => handleEdgeRightClick(e, edge)}
-                          style={{ pointerEvents: "auto", cursor: "pointer" }}
+                          style={{ transition: 'fill 0.3s ease-in-out' }}
                         >
                           {edge.weight}
                         </text>
@@ -553,10 +553,7 @@ const Grafos = () => {
                     );
                   }
 
-                  const oppositeExists = edges.some(
-                    e => e.from === edge.to && e.to === edge.from
-                  );
-
+                  const oppositeExists = edges.some(e => e.from === edge.to && e.to === edge.from);
                   const midX = (from.x + to.x) / 2;
                   const midY = (from.y + to.y) / 2;
 
@@ -576,15 +573,12 @@ const Grafos = () => {
                     const offsetX = (normalX / length) * curveOffset;
                     const offsetY = (normalY / length) * curveOffset;
 
-                    path = `M ${from.x} ${from.y}
-                            Q ${midX + offsetX} ${midY + offsetY}
-                              ${to.x} ${to.y}`;
+                    path = `M ${from.x} ${from.y} Q ${midX + offsetX} ${midY + offsetY} ${to.x} ${to.y}`;
 
                     textX = midX + offsetX;
                     textY = midY + offsetY;
                   } else {
-                    path = `M ${from.x} ${from.y}
-                            L ${to.x} ${to.y}`;
+                    path = `M ${from.x} ${from.y} L ${to.x} ${to.y}`;
                   }
 
                   return (
@@ -594,28 +588,31 @@ const Grafos = () => {
                         e.preventDefault();
                         handleEdgeRightClick(e, edge);
                       }}
-                      style={{ pointerEvents: "auto", cursor: "pointer" }}
+                      onMouseEnter={() => setHoveredEdgeIndex(index)}
+                      onMouseLeave={() => setHoveredEdgeIndex(null)}
+                      style={{ 
+                        pointerEvents: "auto", 
+                        cursor: "pointer",
+                        opacity: opacity,
+                        transition: 'opacity 0.3s ease-in-out'
+                      }}
                     >
                       <path
                         d={path}
                         fill="none"
-                        stroke="#94a3b8"
-                        strokeWidth="3"
-                        markerEnd={
-                          edge.type === "directed"
-                            ? "url(#arrow-normal)"
-                            : undefined
-                        }
+                        stroke={strokeColor}
+                        strokeWidth={strokeW}
+                        style={{ transition: 'all 0.3s ease-in-out' }}
+                        markerEnd={edge.type === "directed" ? (isHovered ? "url(#arrow-hover)" : "url(#arrow-normal)") : undefined}
                       />
                       <text
                         x={textX}
                         y={textY}
-                        fill="#f8fafc"
+                        fill={textColor}
                         fontSize="14"
                         fontWeight="bold"
                         textAnchor="middle"
-                        onContextMenu={(e) => handleEdgeRightClick(e, edge)}
-                        style={{ pointerEvents: "auto", cursor: "pointer" }}
+                        style={{ transition: 'fill 0.3s ease-in-out' }}
                       >
                         {edge.weight}
                       </text>

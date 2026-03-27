@@ -42,6 +42,9 @@ const Johnson = () => {
   const [nodeNameInput, setNodeNameInput] = useState("");
   const [editingEdge, setEditingEdge] = useState<EdgeType | null>(null);
   const [edgeValueInput, setEdgeValueInput] = useState("");
+  
+  // Estado para hover en aristas
+  const [hoveredEdgeIndex, setHoveredEdgeIndex] = useState<number | null>(null);
 
   // Estado para guardar resultados manuales de PERT/CPM
   const [networkMetrics, setNetworkMetrics] = useState<Record<number, {early: number, late: number, hValues: Record<string, number>}> | null>(null);
@@ -670,6 +673,16 @@ const Johnson = () => {
                   >
                     <path d="M0,0 L0,6 L9,3 z" fill="#ffffff" />
                   </marker>
+                  <marker
+                    id="arrow-hover"
+                    markerWidth="10"
+                    markerHeight="10"
+                    refX="10"
+                    refY="3"
+                    orient="auto"
+                  >
+                    <path d="M0,0 L0,6 L9,3 z" fill="#a7f3d0" />
+                  </marker>
                 </defs>
 
                 {edges.map((edge, index) => {
@@ -735,7 +748,13 @@ const Johnson = () => {
                           e.preventDefault();
                           handleEdgeRightClick(e, edge);
                         }}
-                        style={{ pointerEvents: "auto", cursor: "pointer", opacity }}
+                        onMouseEnter={() => setHoveredEdgeIndex(index)}
+                        onMouseLeave={() => setHoveredEdgeIndex(null)}
+                        style={{ 
+                          pointerEvents: "auto", 
+                          cursor: "pointer",
+                          opacity: hoveredEdgeIndex !== null && hoveredEdgeIndex !== index ? 0.2 : opacity
+                        }}
                       >
                         <path
                           d={`M ${startX} ${startY}
@@ -743,19 +762,24 @@ const Johnson = () => {
                                 ${control2X} ${control2Y},
                                 ${endX} ${endY}`}
                           fill="none"
-                          stroke={strokeColor}
-                          strokeWidth={strokeWidth}
+                          stroke={hoveredEdgeIndex === index ? "#a7f3d0" : strokeColor}
+                          strokeWidth={hoveredEdgeIndex === index ? 5 : strokeWidth}
                           markerEnd="url(#arrow-small)"
+                          style={{ transition: 'all 0.3s ease-in-out' }}
                         />
                         <text
                           x={from.x}
                           y={from.y - loopHeight - 8}
-                          fill="#f8fafc"
+                          fill={hoveredEdgeIndex === index ? "#a7f3d0" : "#f8fafc"}
                           fontSize="12"
                           fontWeight="bold"
                           textAnchor="middle"
                           onContextMenu={(e) => handleEdgeRightClick(e, edge)}
-                          style={{ pointerEvents: "auto", cursor: "pointer" }}
+                          style={{ 
+                            pointerEvents: "auto", 
+                            cursor: "pointer",
+                            transition: 'all 0.3s ease-in-out'
+                          }}
                         >
                           {calcMode === 'max' && networkMetrics ? `W: ${edge.weight} | H: ${H}` : edge.weight}
                         </text>
@@ -804,24 +828,35 @@ const Johnson = () => {
                         e.preventDefault();
                         handleEdgeRightClick(e, edge);
                       }}
-                      style={{ pointerEvents: "auto", cursor: "pointer", opacity }}
+                      onMouseEnter={() => setHoveredEdgeIndex(index)}
+                      onMouseLeave={() => setHoveredEdgeIndex(null)}
+                      style={{ 
+                        pointerEvents: "auto", 
+                        cursor: "pointer",
+                        opacity: hoveredEdgeIndex !== null && hoveredEdgeIndex !== index ? 0.2 : opacity
+                      }}
                     >
                       <path
                         d={path}
                         fill="none"
-                        stroke={strokeColor}
-                        strokeWidth={strokeWidth}
-                        markerEnd="url(#arrow-normal)"
+                        stroke={hoveredEdgeIndex === index ? "#a7f3d0" : strokeColor}
+                        strokeWidth={hoveredEdgeIndex === index ? 5 : strokeWidth}
+                        markerEnd={hoveredEdgeIndex === index ? "url(#arrow-hover)" : "url(#arrow-normal)"}
+                        style={{ transition: 'all 0.3s ease-in-out' }}
                       />
                       <text
                         x={textX}
                         y={textY}
-                        fill="#f8fafc"
+                        fill={hoveredEdgeIndex === index ? "#a7f3d0" : "#f8fafc"}
                         fontSize="12"
                         fontWeight="bold"
                         textAnchor="middle"
                         onContextMenu={(e) => handleEdgeRightClick(e, edge)}
-                        style={{ pointerEvents: "auto", cursor: "pointer" }}
+                        style={{ 
+                          pointerEvents: "auto", 
+                          cursor: "pointer",
+                          transition: 'all 0.3s ease-in-out'
+                        }}
                       >
                         {calcMode === 'max' && networkMetrics ? `W: ${edge.weight} | H: ${H}` : edge.weight}
                       </text>
