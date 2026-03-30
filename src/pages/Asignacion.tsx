@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import Layout from "@/components/Layout";
-import { MousePointer2, Upload, Download, Trash2, TrendingDown, TrendingUp } from "lucide-react";
+import { MousePointer2, Upload, Download, Trash2, TrendingDown, TrendingUp, HelpCircle } from "lucide-react";
 
 type NodeType = {
   id: number;
@@ -37,6 +37,9 @@ const Asignacion = () => {
   const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 });
   const [draggingNodeId, setDraggingNodeId] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Estado para modal de ayuda
+  const [showHelp, setShowHelp] = useState(false);
 
   // Estados para edición con click derecho
   const [editingNode, setEditingNode] = useState<NodeType | null>(null);
@@ -1431,6 +1434,50 @@ const Asignacion = () => {
           </div>
         </div>
       </div>
+
+      {/* BOTÓN FLOTANTE DE AYUDA */}
+      <div className="fixed bottom-6 right-6 z-40">
+        <button 
+          onClick={() => setShowHelp(true)} 
+          className="w-12 h-12 rounded-full border-2 border-slate-400 text-slate-400 flex items-center justify-center bg-transparent backdrop-blur-sm transition-all duration-200 hover:bg-slate-400 hover:text-slate-900 shadow-lg hover:shadow-xl focus:outline-none" 
+          title="Ver guía de uso"
+        >
+          <HelpCircle size={24} strokeWidth={2.5} />
+        </button>
+      </div>
+
+      {/* MODAL DE AYUDA */}
+      {showHelp && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 transition-opacity">
+          <div className="bg-slate-900 border border-slate-700 p-6 rounded-2xl w-full max-w-lg shadow-2xl relative">
+            <button onClick={() => setShowHelp(false)} className="absolute top-4 right-4 text-slate-400 hover:text-white transition-colors">
+              &times;
+            </button>
+            <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+              <HelpCircle size={20} className="text-slate-300" />
+              Guía: Algoritmo de Asignación
+            </h2>
+            <div className="text-slate-300 text-sm space-y-4 max-h-[60vh] overflow-y-auto pr-2">
+              <div className="space-y-4 text-slate-300">
+                <p>El <strong>Algoritmo de Asignación</strong> se utiliza para encontrar la mejor forma de asignar recursos (ej. trabajadores) a tareas, optimizando un objetivo.</p>
+                <ul className="list-disc pl-5 space-y-2">
+                  <li><strong>Preparación:</strong> Debes tener un grafo bipartito (dos grupos de nodos conectados entre sí) que representen Agentes y Tareas. Los pesos de las aristas son los costos o ganancias.</li>
+                  <li><strong className="text-emerald-400">Minimizar (Verde):</strong> Úsalo cuando los pesos representen <em>costos, tiempo o esfuerzo</em>. El algoritmo encontrará la asignación que genere el menor gasto total.</li>
+                  <li><strong className="text-violet-400">Maximizar (Morado):</strong> Úsalo cuando los pesos representen <em>ganancias, puntajes o eficiencia</em>. Buscará la asignación que genere el mayor beneficio posible.</li>
+                </ul>
+                <p className="text-amber-200/80 bg-amber-500/10 p-3 rounded-lg border border-amber-500/20 mt-4">
+                  💡 <em>Tip: El número de agentes debe coincidir con el número de tareas para una asignación perfecta.</em>
+                </p>
+              </div>
+            </div>
+            <div className="mt-6 flex justify-end">
+              <button onClick={() => setShowHelp(false)} className="px-5 py-2 bg-slate-200 hover:bg-white text-slate-900 font-medium rounded-lg transition-colors">
+                Entendido
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </Layout>
   );
 };

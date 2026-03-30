@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import Layout from "@/components/Layout";
-import { MousePointer2, Upload, Download, Trash2 } from "lucide-react";
+import { MousePointer2, Upload, Download, Trash2, HelpCircle } from "lucide-react";
 
 type NodeType = {
   id: number;
@@ -45,6 +45,9 @@ const Grafos = () => {
 
   // Estado para hover en aristas
   const [hoveredEdgeIndex, setHoveredEdgeIndex] = useState<number | null>(null);
+
+  // Estado para modal de ayuda
+  const [showHelp, setShowHelp] = useState(false);
 
   /* ---------- MEDIR CONTENEDOR ---------- */
   useEffect(() => {
@@ -932,6 +935,51 @@ const Grafos = () => {
           </div>
         </div>
       </div>
+
+      {/* BOTÓN FLOTANTE DE AYUDA */}
+      <div className="fixed bottom-6 right-6 z-40">
+        <button 
+          onClick={() => setShowHelp(true)} 
+          className="w-12 h-12 rounded-full border-2 border-slate-400 text-slate-400 flex items-center justify-center bg-transparent backdrop-blur-sm transition-all duration-200 hover:bg-slate-400 hover:text-slate-900 shadow-lg hover:shadow-xl focus:outline-none" 
+          title="Ver guía de uso"
+        >
+          <HelpCircle size={24} strokeWidth={2.5} />
+        </button>
+      </div>
+
+      {/* MODAL DE AYUDA */}
+      {showHelp && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 transition-opacity">
+          <div className="bg-slate-900 border border-slate-700 p-6 rounded-2xl w-full max-w-lg shadow-2xl relative">
+            <button onClick={() => setShowHelp(false)} className="absolute top-4 right-4 text-slate-400 hover:text-white transition-colors">
+              &times;
+            </button>
+            <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+              <HelpCircle size={20} className="text-slate-300" />
+              Guía: Creación de Grafos
+            </h2>
+            <div className="text-slate-300 text-sm space-y-4 max-h-[60vh] overflow-y-auto pr-2">
+              <div className="space-y-4 text-slate-300">
+                <p>Bienvenido al <strong>Panel de Grafos</strong>. Aquí puedes diseñar la estructura base de tu red.</p>
+                <ul className="list-disc pl-5 space-y-2">
+                  <li><strong>Crear Nodos:</strong> Selecciona la herramienta 'Agregar Nodo' y haz clic en cualquier parte del lienzo.</li>
+                  <li><strong>Crear Aristas:</strong> Selecciona la herramienta de arista (Dirigida o No Dirigida). Haz clic en el nodo de origen y luego en el nodo de destino.</li>
+                  <li><strong>Asignar Pesos:</strong> Al crear una arista, se te pedirá que ingreses un valor o costo. Este valor es crucial para los algoritmos.</li>
+                  <li><strong>Importar/Exportar:</strong> Usa los botones superiores para guardar tu trabajo en tu computadora y cargarlo más tarde.</li>
+                </ul>
+                <p className="text-amber-200/80 bg-amber-500/10 p-3 rounded-lg border border-amber-500/20 mt-4">
+                  💡 <em>Tip: Asegúrate de estructurar bien tu grafo aquí antes de pasar a las pestañas de algoritmos.</em>
+                </p>
+              </div>
+            </div>
+            <div className="mt-6 flex justify-end">
+              <button onClick={() => setShowHelp(false)} className="px-5 py-2 bg-slate-200 hover:bg-white text-slate-900 font-medium rounded-lg transition-colors">
+                Entendido
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </Layout>
   );
 };

@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useMemo } from "react";
 import Layout from "@/components/Layout";
-import { MousePointer2, Upload, Download, Trash2, TrendingDown, TrendingUp } from "lucide-react";
+import { MousePointer2, Upload, Download, Trash2, TrendingDown, TrendingUp, HelpCircle } from "lucide-react";
 
 type NodeType = {
   id: number;
@@ -36,6 +36,9 @@ const Johnson = () => {
   const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 });
   const [draggingNodeId, setDraggingNodeId] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Estado para modal de ayuda
+  const [showHelp, setShowHelp] = useState(false);
 
   // Estados para edición con click derecho
   const [editingNode, setEditingNode] = useState<NodeType | null>(null);
@@ -1059,7 +1062,11 @@ const Johnson = () => {
                       </button>
                     </div>
                     <button
-                      onClick={() => deleteEdge(edges.findIndex(e => e.from === editingEdge.from && e.to === editingEdge.to))}
+                      onClick={() => {
+                        deleteEdge(edges.findIndex(e => e.from === editingEdge.from && e.to === editingEdge.to));
+                        setEditingEdge(null);
+                        setEdgeValueInput("");
+                      }}
                       className="w-full bg-red-600 hover:bg-red-700 py-2 rounded-xl transition"
                     >
                       Eliminar arista
@@ -1207,6 +1214,50 @@ const Johnson = () => {
           </div>
         </div>
       </div>
+
+      {/* BOTÓN FLOTANTE DE AYUDA */}
+      <div className="fixed bottom-6 right-6 z-40">
+        <button 
+          onClick={() => setShowHelp(true)} 
+          className="w-12 h-12 rounded-full border-2 border-slate-400 text-slate-400 flex items-center justify-center bg-transparent backdrop-blur-sm transition-all duration-200 hover:bg-slate-400 hover:text-slate-900 shadow-lg hover:shadow-xl focus:outline-none" 
+          title="Ver guía de uso"
+        >
+          <HelpCircle size={24} strokeWidth={2.5} />
+        </button>
+      </div>
+
+      {/* MODAL DE AYUDA */}
+      {showHelp && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 transition-opacity">
+          <div className="bg-slate-900 border border-slate-700 p-6 rounded-2xl w-full max-w-lg shadow-2xl relative">
+            <button onClick={() => setShowHelp(false)} className="absolute top-4 right-4 text-slate-400 hover:text-white transition-colors">
+              &times;
+            </button>
+            <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+              <HelpCircle size={20} className="text-slate-300" />
+              Guía: Algoritmo de Johnson
+            </h2>
+            <div className="text-slate-300 text-sm space-y-4 max-h-[60vh] overflow-y-auto pr-2">
+              <div className="space-y-4 text-slate-300">
+                <p>El <strong>Algoritmo de Johnson</strong> se utiliza en la gestión de proyectos y redes para encontrar rutas óptimas entre múltiples puntos.</p>
+                <ul className="list-disc pl-5 space-y-2">
+                  <li><strong>Preparación:</strong> Asegúrate de que tu grafo tenga pesos asignados a cada arista (representando tiempo, costo o distancia).</li>
+                  <li><strong className="text-emerald-400">Camino Más Corto:</strong> Encuentra la ruta más eficiente (de menor peso total) entre los nodos. Ideal para logística y ahorro de recursos.</li>
+                  <li><strong className="text-violet-400">Camino Crítico:</strong> Encuentra la ruta más larga (de mayor peso total). En gestión de proyectos, esta ruta determina el tiempo mínimo necesario para completar todo el proyecto sin retrasos.</li>
+                </ul>
+                <p className="text-amber-200/80 bg-amber-500/10 p-3 rounded-lg border border-amber-500/20 mt-4">
+                  💡 <em>Tip: Los resultados se resaltarán en el lienzo para que puedas visualizar visualmente la ruta exacta.</em>
+                </p>
+              </div>
+            </div>
+            <div className="mt-6 flex justify-end">
+              <button onClick={() => setShowHelp(false)} className="px-5 py-2 bg-slate-200 hover:bg-white text-slate-900 font-medium rounded-lg transition-colors">
+                Entendido
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </Layout>
   );
 };
