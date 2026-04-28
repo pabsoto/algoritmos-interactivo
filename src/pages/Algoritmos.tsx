@@ -1,5 +1,5 @@
 import Layout from "@/components/Layout";
-import { Play, FileText, Lightbulb, Network, GitMerge, Search } from "lucide-react";
+import { Play, FileText, Lightbulb, Network, GitMerge, Search, BarChart2 } from "lucide-react";
 
 const algorithms = [
   {
@@ -33,6 +33,14 @@ const algorithms = [
     icon: Lightbulb,
     color: "hsl(220 80% 52%)",
     colorBg: "hsl(220 80% 52% / 0.1)",
+  },
+  {
+    title: "Algoritmos de Ordenamiento",
+    description:
+      "Diferentes métodos para organizar elementos en un orden específico, como Burbuja, Selección, Inserción, entre otros.",
+    icon: BarChart2,
+    color: "hsl(150 70% 50%)",
+    colorBg: "hsl(150 70% 50% / 0.1)",
   },
 ];
 
