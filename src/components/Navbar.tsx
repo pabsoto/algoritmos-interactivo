@@ -1,5 +1,5 @@
 import { Link, useLocation } from "react-router-dom";
-import { BookOpen, GitFork, Home, Users, ChevronDown, BarChart2 } from "lucide-react";
+import { BookOpen, GitFork, Home, Users, ChevronDown, BarChart2, TreePine } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -17,6 +17,7 @@ const algorithmItems = [
   { to: "/asignacion", label: "Algoritmo de Asignación", icon: Users },
   { to: "/johnson", label: "Algoritmo de Johnson", icon: GitFork },
   { to: "/ordenamiento", label: "Ordenamiento", icon: BarChart2 },
+  { to: "/arboles", label: "Árboles", icon: TreePine },
 ];
 
 const Navbar = () => {

@@ -9,6 +9,7 @@ import Grafos from "./pages/Grafos";
 import Asignacion from "./pages/Asignacion";
 import Johnson from "./pages/Johnson";
 import Ordenamiento from "./pages/Ordenamiento";
+import Arboles from "./pages/Arboles";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -26,6 +27,7 @@ const App = () => (
           <Route path="/asignacion" element={<Asignacion />} />
           <Route path="/johnson" element={<Johnson />} />
           <Route path="/ordenamiento" element={<Ordenamiento />} />
+          <Route path="/arboles" element={<Arboles />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
