@@ -12,6 +12,7 @@ import Ordenamiento from "./pages/Ordenamiento";
 import Arboles from "./pages/Arboles";
 import Northwest from "./pages/Northwest";
 import NotFound from "./pages/NotFound";
+import Kruskal from "./pages/Kruskal";
 
 const queryClient = new QueryClient();
 
@@ -30,6 +31,7 @@ const App = () => (
           <Route path="/ordenamiento" element={<Ordenamiento />} />
           <Route path="/arboles" element={<Arboles />} />
           <Route path="/northwest" element={<Northwest />} /> 
+          <Route path="/kruskal" element={<Kruskal />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>

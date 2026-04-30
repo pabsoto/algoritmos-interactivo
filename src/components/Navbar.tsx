@@ -19,6 +19,7 @@ const algorithmItems = [
   { to: "/ordenamiento", label: "Ordenamiento", icon: BarChart2 },
   { to: "/arboles", label: "Árboles", icon: TreePine },
   { to: "/northwest", label: "Northwest", icon: Compass },
+  { to: "/kruskal", label: "Kruskal", icon: Compass },
 ];
 
 const Navbar = () => {
