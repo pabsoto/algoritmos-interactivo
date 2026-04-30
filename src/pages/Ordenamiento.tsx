@@ -2,12 +2,13 @@ import { useState, useEffect, useRef } from "react";
 import Layout from "@/components/Layout";
 import { Play, RotateCcw, Shuffle, HelpCircle, X } from "lucide-react";
 
-type SortAlg = "selection" | "insertion" | "merge";
+type SortAlg = "selection" | "insertion" | "merge" | "shell";
 
 const algoLabel: Record<SortAlg, string> = {
 	selection: "Selección",
 	insertion: "Inserción",
 	merge: "Merge",
+	shell: "Shell",
 };
 
 const algoDesc: Record<SortAlg, string> = {
@@ -17,6 +18,8 @@ const algoDesc: Record<SortAlg, string> = {
 		"Construye el subarreglo ordenado uno a uno. Toma cada elemento y lo inserta en su posición correcta desplazando los mayores. Complejidad: O(n²) promedio, O(n) mejor caso.",
 	merge:
 		"Divide el arreglo en mitades recursivamente, ordena cada mitad y las fusiona comparando elemento a elemento. Complejidad garantizada: O(n log n).",
+	shell:
+		"Generalización del ordenamiento por inserción que compara y desplaza elementos separados por un intervalo (gap) decreciente. Inicia con gap = n/2 y lo reduce a la mitad en cada pasada hasta gap = 1. Complejidad: O(n log² n) con la secuencia de Shell.",
 };
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -269,6 +272,48 @@ const Ordenamiento = () => {
 		}
 	};
 
+	// ── SHELL SORT ────────────────────────────────────────────────────────────
+	const runShell = async (arr: number[], tok: { cancelled: boolean }) => {
+		const n = arr.length;
+		let gap = Math.floor(n / 2);
+
+		while (gap > 0) {
+			if (tok.cancelled) return;
+			setStatusMsg(`Pasada con intervalo gap = ${gap}: inserción con salto ${gap}`);
+			await delay();
+
+			for (let i = gap; i < n; i++) {
+				if (tok.cancelled) return;
+				const key = arr[i];
+				setKeyHighlight(i);
+				setStatusMsg(`Gap=${gap}: posicionando ${key} desde índice ${i}`);
+				await delay();
+
+				let j = i;
+				while (j >= gap && arr[j - gap] > key) {
+					if (tok.cancelled) return;
+					setComparing([j, j - gap]);
+					setStatusMsg(`Gap=${gap}: ${arr[j - gap]} > ${key}, desplazando ${arr[j - gap]} a la derecha`);
+					arr[j] = arr[j - gap];
+					setDisplayArray([...arr]);
+					await delay();
+					j -= gap;
+				}
+				arr[j] = key;
+				setDisplayArray([...arr]);
+				setKeyHighlight(null);
+				setComparing([]);
+				setStatusMsg(`Gap=${gap}: ${key} colocado en posición ${j}`);
+				await delay();
+			}
+
+			gap = Math.floor(gap / 2);
+		}
+
+		setSortedSet(new Set(arr.map((_, i) => i)));
+		setStatusMsg("¡Shell Sort completado!");
+	};
+
 	// ── START ─────────────────────────────────────────────────────────────────
 	const startSorting = async () => {
 		if (isSorting || !array.length) return;
@@ -281,7 +326,8 @@ const Ordenamiento = () => {
 		try {
 			if (algorithm === "selection") await runSelection(arr, tok);
 			else if (algorithm === "insertion") await runInsertion(arr, tok);
-			else await runMerge(arr, tok);
+			else if (algorithm === "merge") await runMerge(arr, tok);
+			else await runShell(arr, tok);
 		} finally {
 			if (!tok.cancelled) setIsSorting(false);
 		}
@@ -374,7 +420,7 @@ const Ordenamiento = () => {
 								Visualizador de Ordenamiento
 							</h1>
 							<p className="text-xs text-slate-400 mt-0.5">
-								Selección - Inserción - Merge
+								Selección · Inserción · Merge · Shell
 							</p>
 						</div>
 						<div className="flex items-center gap-3">
@@ -411,7 +457,7 @@ const Ordenamiento = () => {
 								Algoritmo
 							</h2>
 							<div className="space-y-1.5">
-								{(["selection", "insertion", "merge"] as SortAlg[]).map(
+								{(["selection", "insertion", "merge", "shell"] as SortAlg[]).map(
 									(alg) => (
 										<button
 											key={alg}
@@ -850,6 +896,25 @@ const Ordenamiento = () => {
 									luego las fusiona comparando elemento a elemento. Complejidad
 									garantizada <strong className="text-white">O(n log n)</strong>
 									, eficiente con arreglos grandes.
+								</p>
+							</div>
+							<div>
+								<h3 className="font-semibold text-indigo-300 mb-2">
+									Shell Sort
+								</h3>
+								<p className="text-slate-400">
+									Generalización del ordenamiento por inserción. En cada pasada
+									usa un{" "}
+									<strong className="text-white">intervalo (gap)</strong> para
+									comparar elementos no adyacentes:{" "}
+									<span className="font-medium text-pink-400">rosa</span> marca
+									el elemento en movimiento y{" "}
+									<span className="font-medium" style={{ color: "hsl(200 85% 55%)" }}>
+										azul brillante
+									</span>{" "}
+									los que se comparan. El gap empieza en n/2 y se divide entre 2
+									en cada pasada. Complejidad típica{" "}
+									<strong className="text-white">O(n log² n)</strong>.
 								</p>
 							</div>
 							<p className="text-xs text-amber-200/80 bg-amber-500/10 p-3 rounded-lg border border-amber-500/20">
