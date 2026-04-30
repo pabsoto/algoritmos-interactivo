@@ -5,11 +5,16 @@ import { Grid3x3, Play, SkipForward, RotateCcw, Shuffle, ChevronRight, CheckCirc
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 interface Step {
-  row: number;
-  col: number;
-  allocation: number;
-  supply: number[];
-  demand: number[];
+  type: "initial" | "optimization";
+  row?: number;
+  col?: number;
+  allocation?: number;
+  allocations: AllocationCell[];
+  supplyAfter: number[];
+  demandAfter: number[];
+  u?: (number | null)[];
+  v?: (number | null)[];
+  loop?: { row: number; col: number }[];
   description: string;
 }
 
@@ -62,24 +67,33 @@ const northwestCorner = (
   const s = [...supply];
   const d = [...demand];
   const steps: Step[] = [];
+  const currentAllocations: AllocationCell[] = [];
   let i = 0;
   let j = 0;
 
   while (i < s.length && j < d.length) {
     const allocation = Math.min(s[i], d[j]);
+    const prevS = s[i];
+    const prevD = d[j];
+    
+    s[i] -= allocation;
+    d[j] -= allocation;
+    currentAllocations.push({ row: i, col: j, value: allocation });
+
     steps.push({
+      type: "initial",
       row: i,
       col: j,
       allocation,
-      supply: [...s],
-      demand: [...d],
-      description: `Asignar min(O${i + 1}=${s[i]}, D${j + 1}=${d[j]}) = ${allocation} unidades`,
+      allocations: currentAllocations.map(a => ({ ...a })),
+      supplyAfter: [...s],
+      demandAfter: [...d],
+      description: `Esquina Noroeste: Asignar min(O${i + 1}=${prevS}, D${j + 1}=${prevD}) = ${allocation}`,
     });
-    s[i] -= allocation;
-    d[j] -= allocation;
+
     if (s[i] === 0 && d[j] === 0) {
-      // Degenerate case: both exhausted — advance only i to stay on the same column
-      i++;
+      if (i < s.length - 1) i++;
+      else j++;
     } else {
       if (s[i] === 0) i++;
       if (d[j] === 0) j++;
@@ -89,13 +103,123 @@ const northwestCorner = (
   return steps;
 };
 
+const minimumCostMethod = (
+  supply: number[],
+  demand: number[],
+  costs: number[][],
+  mode: "minimize" | "maximize"
+): Step[] => {
+  const s = [...supply];
+  const d = [...demand];
+  const steps: Step[] = [];
+  const currentAllocations: AllocationCell[] = [];
+  const rows = s.length;
+  const cols = d.length;
+  const visitedRows = new Set<number>();
+  const visitedCols = new Set<number>();
+
+  while (visitedRows.size < rows && visitedCols.size < cols) {
+    let bestVal = mode === "minimize" ? Infinity : -Infinity;
+    let bestCell: [number, number] | null = null;
+
+    for (let i = 0; i < rows; i++) {
+      if (visitedRows.has(i)) continue;
+      for (let j = 0; j < cols; j++) {
+        if (visitedCols.has(j)) continue;
+        const cost = costs[i][j];
+        if (mode === "minimize" ? cost < bestVal : cost > bestVal) {
+          bestVal = cost;
+          bestCell = [i, j];
+        }
+      }
+    }
+
+    if (!bestCell) break;
+    const [r, c] = bestCell;
+    const allocation = Math.min(s[r], d[c]);
+    const prevS = s[r];
+    const prevD = d[c];
+
+    s[r] -= allocation;
+    d[c] -= allocation;
+    currentAllocations.push({ row: r, col: c, value: allocation });
+
+    steps.push({
+      type: "initial",
+      row: r,
+      col: c,
+      allocation,
+      allocations: currentAllocations.map(a => ({ ...a })),
+      supplyAfter: [...s],
+      demandAfter: [...d],
+      description: `Costo ${mode === "minimize" ? "Mínimo" : "Máximo"}: [O${r + 1}, D${c + 1}] (${bestVal}). Asignar min(${prevS}, ${prevD}) = ${allocation}`,
+    });
+
+    if (s[r] === 0) visitedRows.add(r);
+    if (d[c] === 0) visitedCols.add(c);
+  }
+
+  return steps;
+};
+
+const solveUV = (rows: number, cols: number, basicCells: { row: number; col: number; cost: number }[]) => {
+  const u: (number | null)[] = new Array(rows).fill(null);
+  const v: (number | null)[] = new Array(cols).fill(null);
+  u[0] = 0;
+
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const { row: r, col: c, cost } of basicCells) {
+      if (u[r] !== null && v[c] === null) {
+        v[c] = cost - u[r]!;
+        changed = true;
+      } else if (v[c] !== null && u[r] === null) {
+        u[r] = cost - v[c]!;
+        changed = true;
+      }
+    }
+  }
+  return { u, v };
+};
+
+const findClosedLoop = (startCell: { row: number; col: number }, basicCells: { row: number; col: number }[]) => {
+  const points = [startCell, ...basicCells];
+  const path: { row: number; col: number }[] = [];
+
+  const getNeighbors = (curr: { row: number; col: number }, type: "row" | "col") => {
+    return points.filter(p => 
+      p !== curr && (type === "row" ? p.row === curr.row : p.col === curr.col)
+    );
+  };
+
+  const solve = (curr: { row: number; col: number }, target: "row" | "col"): boolean => {
+    path.push(curr);
+    if (path.length > 3) {
+      const isClosing = target === "row" ? curr.row === startCell.row : curr.col === startCell.col;
+      if (isClosing) return true;
+    }
+
+    const neighbors = getNeighbors(curr, target);
+    for (const next of neighbors) {
+      if (path.includes(next)) continue;
+      if (solve(next, target === "row" ? "col" : "row")) return true;
+    }
+
+    path.pop();
+    return false;
+  };
+
+  if (solve(startCell, "row")) return path;
+  if (solve(startCell, "col")) return path;
+  return null;
+};
+
 const computeTotalCost = (allocations: AllocationCell[], costs: number[][], dummyRow: number | null, dummyCol: number | null) =>
   allocations.reduce((sum, a) => {
     if (a.row === dummyRow || a.col === dummyCol) return sum;
-    return sum + a.value * costs[a.row][a.col];
+    return sum + a.value * (costs[a.row]?.[a.col] ?? 0);
   }, 0);
-
-// ─── Sub-components ──────────────────────────────────────────────────────────
 
 const CellInput = ({
   value,
@@ -156,6 +280,8 @@ const Northwest = () => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [speed, setSpeed] = useState(1200);
   const [tab, setTab] = useState<"config" | "result">("config");
+  const [method, setMethod] = useState<"northwest" | "min_cost">("northwest");
+  const [mode, setMode] = useState<"minimize" | "maximize">("minimize");
 
   // Context for the (potentially balanced) problem that was actually solved
   const [solveCtx, setSolveCtx] = useState<SolveContext | null>(null);
@@ -164,9 +290,9 @@ const Northwest = () => {
 
   const ctx = solveCtx ?? { costs, supply, demand, rows, cols, dummyRow: null, dummyCol: null };
 
-  const allocations: AllocationCell[] = steps
-    .slice(0, currentStep + 1)
-    .map((s) => ({ row: s.row, col: s.col, value: s.allocation }));
+  const allocations: AllocationCell[] = currentStep >= 0 
+    ? steps[currentStep].allocations 
+    : [];
 
   const totalCost = computeTotalCost(allocations, ctx.costs, ctx.dummyRow, ctx.dummyCol);
   const isFinished = currentStep === steps.length - 1 && steps.length > 0;
@@ -175,18 +301,24 @@ const Northwest = () => {
   const resizeGrid = (newRows: number, newCols: number) => {
     setCosts((prev) =>
       Array.from({ length: newRows }, (_, r) =>
-        Array.from({ length: newCols }, (_, c) => prev[r]?.[c] ?? randomInt(1, 20))
+        Array.from({ length: newCols }, (_, c) => prev[r]?.[c] ?? 0)
       )
     );
     setSupply((prev) =>
-      Array.from({ length: newRows }, (_, r) => prev[r] ?? randomInt(10, 50))
+      Array.from({ length: newRows }, (_, r) => prev[r] ?? 0)
     );
     setDemand((prev) =>
-      Array.from({ length: newCols }, (_, c) => prev[c] ?? randomInt(5, 40))
+      Array.from({ length: newCols }, (_, c) => prev[c] ?? 0)
     );
     setRows(newRows);
     setCols(newCols);
-    reset();
+    
+    // Cleanup results
+    setSteps([]);
+    setCurrentStep(-1);
+    setIsPlaying(false);
+    setSolveCtx(null);
+    if (intervalRef.current) clearInterval(intervalRef.current);
   };
 
   const randomize = () => {
@@ -216,24 +348,134 @@ const Northwest = () => {
     let dummyCol: number | null = null;
 
     if (totalSupply > totalDemand) {
-      // Add dummy destination column with cost 0
       dummyCol = cols;
       solvedCols = cols + 1;
       solvedDemand = [...demand, totalSupply - totalDemand];
       solvedCosts = costs.map((row) => [...row, 0]);
     } else if (totalDemand > totalSupply) {
-      // Add dummy origin row with cost 0
       dummyRow = rows;
       solvedRows = rows + 1;
       solvedSupply = [...supply, totalDemand - totalSupply];
       solvedCosts = [...costs.map((r) => [...r]), new Array(cols).fill(0)];
     }
 
-    const s = northwestCorner(solvedSupply, solvedDemand, solvedCosts);
+    const initialSteps = method === "northwest" 
+      ? northwestCorner(solvedSupply, solvedDemand, solvedCosts)
+      : minimumCostMethod(solvedSupply, solvedDemand, solvedCosts, mode);
+
+    const s = [...initialSteps];
+    
+    // ── Optimization Phase (MODI) ──────────────────────────────────────────
+    let currentAllocations = [...s[s.length - 1].allocations];
+    let optimized = false;
+    let iterations = 0;
+
+    while (!optimized && iterations < 20) {
+      iterations++;
+      // Ensure basis has m+n-1 cells (handle degeneracy)
+      const basis = [...currentAllocations];
+      if (basis.length < solvedRows + solvedCols - 1) {
+        for (let r = 0; r < solvedRows; r++) {
+          for (let c = 0; c < solvedCols; c++) {
+            if (!basis.find(b => b.row === r && b.col === c)) {
+              basis.push({ row: r, col: c, value: 0 });
+              if (basis.length === solvedRows + solvedCols - 1) break;
+            }
+          }
+          if (basis.length === solvedRows + solvedCols - 1) break;
+        }
+      }
+
+      const { u, v } = solveUV(solvedRows, solvedCols, basis.map(b => ({ row: b.row, col: b.col, cost: solvedCosts[b.row][b.col] })));
+      
+      let bestImprovement = 0;
+      let enteringCell: { row: number, col: number } | null = null;
+
+      for (let r = 0; r < solvedRows; r++) {
+        for (let c = 0; c < solvedCols; c++) {
+          if (basis.find(b => b.row === r && b.col === c)) continue;
+          if (u[r] === null || v[c] === null) continue;
+
+          const shadowCost = solvedCosts[r][c] - (u[r]! + v[c]!);
+          const improvement = mode === "minimize" ? shadowCost : -shadowCost;
+
+          if (improvement < bestImprovement) {
+            bestImprovement = improvement;
+            enteringCell = { row: r, col: c };
+          }
+        }
+      }
+
+      if (!enteringCell || bestImprovement >= 0) {
+        optimized = true;
+        s.push({
+          type: "optimization",
+          allocations: currentAllocations.map(a => ({ ...a })),
+          supplyAfter: new Array(solvedRows).fill(0),
+          demandAfter: new Array(solvedCols).fill(0),
+          u, v,
+          description: "¡Solución Óptima alcanzada! No hay más mejoras posibles.",
+        });
+      } else {
+        const loop = findClosedLoop(enteringCell, basis.map(b => ({ row: b.row, col: b.col })));
+        if (!loop) {
+          optimized = true; 
+          continue;
+        }
+
+        // Find max units to shift
+        let theta = Infinity;
+        for (let i = 1; i < loop.length; i += 2) {
+          const cell = currentAllocations.find(a => a.row === loop[i].row && a.col === loop[i].col);
+          theta = Math.min(theta, cell?.value ?? 0);
+        }
+
+        const nextAllocations = currentAllocations.map(a => ({ ...a }));
+        const enteringInAlloc = nextAllocations.find(a => a.row === enteringCell!.row && a.col === enteringCell!.col);
+        if (enteringInAlloc) enteringInAlloc.value += theta;
+        else nextAllocations.push({ row: enteringCell.row, col: enteringCell.col, value: theta });
+
+        for (let i = 1; i < loop.length; i++) {
+          const cellIdx = nextAllocations.findIndex(a => a.row === loop[i].row && a.col === loop[i].col);
+          if (cellIdx !== -1) {
+            nextAllocations[cellIdx].value += (i % 2 === 0 ? theta : -theta);
+            if (nextAllocations[cellIdx].value <= 0) nextAllocations.splice(cellIdx, 1);
+          }
+        }
+
+        s.push({
+          type: "optimization",
+          allocations: currentAllocations.map(a => ({ ...a })),
+          supplyAfter: new Array(solvedRows).fill(0),
+          demandAfter: new Array(solvedCols).fill(0),
+          u, v, loop,
+          description: `Iteración MODI: Celda de mejora [O${enteringCell.row+1}, D${enteringCell.col+1}] con costo de oportunidad ${bestImprovement}. Desplazando ${theta} unidades en el lazo.`,
+        });
+        currentAllocations = nextAllocations;
+      }
+    }
+
     setSolveCtx({ costs: solvedCosts, supply: solvedSupply, demand: solvedDemand, rows: solvedRows, cols: solvedCols, dummyRow, dummyCol });
     setSteps(s);
     setCurrentStep(-1);
     setTab("result");
+  };
+
+  const balanceMatrix = () => {
+    const totalSupply = supply.reduce((a, b) => a + b, 0);
+    const totalDemand = demand.reduce((a, b) => a + b, 0);
+
+    if (totalSupply > totalDemand) {
+      // Add column
+      setCosts(prev => prev.map(row => [...row, 0]));
+      setDemand(prev => [...prev, totalSupply - totalDemand]);
+      setCols(prev => prev + 1);
+    } else if (totalDemand > totalSupply) {
+      // Add row
+      setCosts(prev => [...prev, new Array(cols).fill(0)]);
+      setSupply(prev => [...prev, totalDemand - totalSupply]);
+      setRows(prev => prev + 1);
+    }
   };
 
   const reset = () => {
@@ -288,10 +530,10 @@ const Northwest = () => {
   const getCellAllocation = (r: number, c: number) =>
     allocations.find((a) => a.row === r && a.col === c)?.value ?? null;
 
-  const currentSupply = currentStep >= 0 ? steps[currentStep].supply : ctx.supply;
-  const currentDemand = currentStep >= 0 ? steps[currentStep].demand : ctx.demand;
+  const currentSupply = currentStep >= 0 ? steps[currentStep].supplyAfter : ctx.supply;
+  const currentDemand = currentStep >= 0 ? steps[currentStep].demandAfter : ctx.demand;
 
-  const finalAllocations = steps.map((s) => ({ row: s.row, col: s.col, value: s.allocation }));
+  const finalAllocations = steps.length > 0 ? steps[steps.length - 1].allocations : [];
 
   // ── Exportar ─────────────────────────────────────────────────────────────
   const exportData = async () => {
@@ -410,22 +652,59 @@ const Northwest = () => {
           <aside className="w-64 space-y-4 shrink-0">
 
             <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-4 shadow-2xl">
-              <h2 className="text-lg font-bold text-white mb-4">Dimensiones</h2>
-              <div className="space-y-3">
+              <h2 className="text-lg font-bold text-white mb-4">Configuración</h2>
+              <div className="space-y-4">
                 <div>
-                  <label className="text-xs text-slate-400 uppercase font-semibold">Orígenes (filas)</label>
-                  <div className="flex items-center gap-2 mt-1">
-                    <button onClick={() => resizeGrid(Math.max(2, rows - 1), cols)} className="bg-slate-700 hover:bg-slate-600 text-white w-8 h-8 rounded-lg font-bold transition-colors">−</button>
-                    <span className="flex-1 text-center text-white font-bold">{rows}</span>
-                    <button onClick={() => resizeGrid(Math.min(6, rows + 1), cols)} className="bg-slate-700 hover:bg-slate-600 text-white w-8 h-8 rounded-lg font-bold transition-colors">+</button>
-                  </div>
+                  <label className="text-xs text-slate-400 uppercase font-semibold block mb-2">Método</label>
+                  <select 
+                    value={method}
+                    onChange={(e) => setMethod(e.target.value as any)}
+                    className="w-full bg-slate-800 border border-slate-700 text-white text-sm rounded-lg p-2 outline-none focus:ring-2 focus:ring-emerald-500"
+                  >
+                    <option value="northwest">Esquina Noroeste</option>
+                    <option value="min_cost">Costo Mínimo</option>
+                  </select>
                 </div>
-                <div>
-                  <label className="text-xs text-slate-400 uppercase font-semibold">Destinos (columnas)</label>
-                  <div className="flex items-center gap-2 mt-1">
-                    <button onClick={() => resizeGrid(rows, Math.max(2, cols - 1))} className="bg-slate-700 hover:bg-slate-600 text-white w-8 h-8 rounded-lg font-bold transition-colors">−</button>
-                    <span className="flex-1 text-center text-white font-bold">{cols}</span>
-                    <button onClick={() => resizeGrid(rows, Math.min(6, cols + 1))} className="bg-slate-700 hover:bg-slate-600 text-white w-8 h-8 rounded-lg font-bold transition-colors">+</button>
+                
+                {method === "min_cost" && (
+                  <div>
+                    <label className="text-xs text-slate-400 uppercase font-semibold block mb-2">Objetivo</label>
+                    <div className="flex bg-slate-800 rounded-lg p-1">
+                      <button
+                        onClick={() => setMode("minimize")}
+                        className={`flex-1 px-3 py-1.5 text-xs font-bold rounded-md transition-all ${mode === "minimize" ? "bg-emerald-600 text-white" : "text-slate-400 hover:text-white"}`}
+                      >
+                        Minimizar
+                      </button>
+                      <button
+                        onClick={() => setMode("maximize")}
+                        className={`flex-1 px-3 py-1.5 text-xs font-bold rounded-md transition-all ${mode === "maximize" ? "bg-violet-600 text-white" : "text-slate-400 hover:text-white"}`}
+                      >
+                        Maximizar
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                <div className="pt-2 border-t border-white/5">
+                  <label className="text-xs text-slate-400 uppercase font-semibold block mb-2">Dimensiones</label>
+                  <div className="space-y-3">
+                    <div>
+                      <label className="text-[10px] text-slate-500 uppercase font-semibold">Orígenes</label>
+                      <div className="flex items-center gap-2 mt-1">
+                        <button onClick={() => resizeGrid(Math.max(2, rows - 1), cols)} className="bg-slate-700 hover:bg-slate-600 text-white w-8 h-8 rounded-lg font-bold transition-colors">−</button>
+                        <span className="flex-1 text-center text-white font-bold">{rows}</span>
+                        <button onClick={() => resizeGrid(Math.min(6, rows + 1), cols)} className="bg-slate-700 hover:bg-slate-600 text-white w-8 h-8 rounded-lg font-bold transition-colors">+</button>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-[10px] text-slate-500 uppercase font-semibold">Destinos</label>
+                      <div className="flex items-center gap-2 mt-1">
+                        <button onClick={() => resizeGrid(rows, Math.max(2, cols - 1))} className="bg-slate-700 hover:bg-slate-600 text-white w-8 h-8 rounded-lg font-bold transition-colors">−</button>
+                        <span className="flex-1 text-center text-white font-bold">{cols}</span>
+                        <button onClick={() => resizeGrid(rows, Math.min(6, cols + 1))} className="bg-slate-700 hover:bg-slate-600 text-white w-8 h-8 rounded-lg font-bold transition-colors">+</button>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -523,7 +802,7 @@ const Northwest = () => {
                           {Array.from({ length: cols }, (_, c) => (
                             <td key={c} className="p-0">
                               <CellInput
-                                value={costs[r][c]}
+                                value={costs[r]?.[c] ?? 0}
                                 onChange={(v) => {
                                   const next = costs.map((row, ri) =>
                                     ri === r ? row.map((cell, ci) => (ci === c ? v : cell)) : row
@@ -535,7 +814,7 @@ const Northwest = () => {
                           ))}
                           <td className="p-0">
                             <CellInput
-                              value={supply[r]}
+                              value={supply[r] ?? 0}
                               onChange={(v) => {
                                 const next = [...supply];
                                 next[r] = v;
@@ -550,7 +829,7 @@ const Northwest = () => {
                         {Array.from({ length: cols }, (_, c) => (
                           <td key={c} className="p-0 pt-1">
                             <CellInput
-                              value={demand[c]}
+                              value={demand[c] ?? 0}
                               onChange={(v) => {
                                 const next = [...demand];
                                 next[c] = v;
@@ -576,13 +855,24 @@ const Northwest = () => {
                   </div>
                 )}
 
-                <button
-                  onClick={run}
-                  disabled={!isReadyToSolve}
-                  className="mt-6 w-full bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 disabled:cursor-not-allowed text-white py-3 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 transition-all shadow-lg shadow-emerald-900/40"
-                >
-                  <Play size={16} /> Resolver con Esquina Noroeste
-                </button>
+                <div className="mt-6 flex gap-3">
+                  <button
+                    onClick={run}
+                    disabled={!isReadyToSolve}
+                    className="flex-1 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 disabled:cursor-not-allowed text-white py-3 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 transition-all shadow-lg shadow-emerald-900/40"
+                  >
+                    <Play size={16} /> Resolver con {method === "northwest" ? "Esquina Noroeste" : "Costo Mínimo"}
+                  </button>
+                  {isImbalanced && (
+                    <button
+                      onClick={balanceMatrix}
+                      className="px-6 bg-slate-700 hover:bg-slate-600 text-white py-3 rounded-2xl font-bold text-sm transition-all"
+                      title="Equilibrar oferta y demanda añadiendo fila/columna ficticia"
+                    >
+                      Equilibrar
+                    </button>
+                  )}
+                </div>
               </div>
             )}
 
@@ -655,7 +945,12 @@ const Northwest = () => {
                           <th className="w-16"></th>
                           {Array.from({ length: ctx.cols }, (_, c) => (
                             <th key={c} className={`text-xs font-bold uppercase pb-1 ${c === ctx.dummyCol ? "text-yellow-400/70" : "text-blue-400"}`}>
-                              {c === ctx.dummyCol ? "D*" : `D${c + 1}`}
+                              <div className="flex flex-col items-center">
+                                <span>{c === ctx.dummyCol ? "D*" : `D${c + 1}`}</span>
+                                {currentStep >= 0 && steps[currentStep].v?.[c] !== undefined && (
+                                  <span className="text-[10px] text-yellow-500 mt-1">v={steps[currentStep].v[c]}</span>
+                                )}
+                              </div>
                             </th>
                           ))}
                           <th className="text-xs text-emerald-400 font-bold uppercase pb-1">Oferta</th>
@@ -665,12 +960,21 @@ const Northwest = () => {
                         {Array.from({ length: ctx.rows }, (_, r) => (
                           <tr key={r}>
                             <td className={`text-xs font-bold text-right pr-2 ${r === ctx.dummyRow ? "text-yellow-400/70" : "text-emerald-400"}`}>
-                              {r === ctx.dummyRow ? "O*" : `O${r + 1}`}
+                              <div className="flex flex-row items-center justify-end gap-2">
+                                {currentStep >= 0 && steps[currentStep].u?.[r] !== undefined && (
+                                  <span className="text-[10px] text-yellow-500">u={steps[currentStep].u[r]}</span>
+                                )}
+                                <span>{r === ctx.dummyRow ? "O*" : `O${r + 1}`}</span>
+                              </div>
                             </td>
                             {Array.from({ length: ctx.cols }, (_, c) => {
                               const state = getCellState(r, c);
                               const allocation = getCellAllocation(r, c);
                               const isDummy = r === ctx.dummyRow || c === ctx.dummyCol;
+                              const step = currentStep >= 0 ? steps[currentStep] : null;
+                              const isInLoop = step?.loop?.some(l => l.row === r && l.col === c);
+                              const loopIndex = step?.loop?.findIndex(l => l.row === r && l.col === c);
+
                               return (
                                 <td key={c} className="p-0">
                                   <div
@@ -678,11 +982,17 @@ const Northwest = () => {
                                       relative rounded-xl p-2 min-w-[60px] min-h-[56px] flex flex-col items-center justify-center transition-all duration-500
                                       ${isDummy ? "opacity-50" : ""}
                                       ${state === "active" ? "bg-emerald-500/30 border-2 border-emerald-400 shadow-lg shadow-emerald-500/30 scale-105" : ""}
-                                      ${state === "done" && !isDummy ? "bg-blue-500/10 border border-blue-500/30" : ""}
-                                      ${state === "done" && isDummy ? "bg-yellow-500/10 border border-yellow-500/20" : ""}
-                                      ${state === "idle" ? "bg-slate-800/60 border border-slate-700/50" : ""}
+                                      ${isInLoop ? "border-2 border-yellow-500 bg-yellow-500/10" : ""}
+                                      ${state === "done" && !isDummy && !isInLoop ? "bg-blue-500/10 border border-blue-500/30" : ""}
+                                      ${state === "done" && isDummy && !isInLoop ? "bg-yellow-500/10 border border-yellow-500/20" : ""}
+                                      ${state === "idle" && !isInLoop ? "bg-slate-800/60 border border-slate-700/50" : ""}
                                     `}
                                   >
+                                    {isInLoop && (
+                                      <div className="absolute -top-1 -left-1 w-4 h-4 bg-yellow-500 rounded-full flex items-center justify-center text-[10px] font-bold text-slate-900 shadow-lg z-10">
+                                        {loopIndex! % 2 === 0 ? "+" : "-"}
+                                      </div>
+                                    )}
                                     <span className="absolute top-1 right-1.5 text-[10px] text-slate-500 font-mono">{ctx.costs[r][c]}</span>
                                     {allocation !== null ? (
                                       <span className={`text-base font-bold ${state === "active" ? "text-emerald-300" : isDummy ? "text-yellow-300/70" : "text-blue-300"}`}>
