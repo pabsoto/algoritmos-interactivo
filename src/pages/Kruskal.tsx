@@ -785,28 +785,42 @@ return (
             <div className="space-y-4">
             {editingElement.source ? (
                 /* --- CONTROLES PARA ARISTA --- */
-                <div>
-                <label className="block text-[10px] text-slate-500 uppercase font-bold mb-1">Peso</label>
-                <input 
-                    type="number" 
-                    className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-white text-sm focus:outline-none focus:border-cyan-500 transition-all"
-                    value={editingElement.weight}
-                    autoFocus
-                    onChange={(e) => {
-                    const val = parseInt(e.target.value);
-                    const newWeight = isNaN(val) ? 1 : Math.max(1, val);
-                    
-                    // 1. Actualiza el panel
-                    setEditingElement({ ...editingElement, weight: newWeight });
-                    
-                    // 2. ¡CRÍTICO! Actualiza el peso en el estado global
-                    setEdges(prevEdges => prevEdges.map(edge => 
-                        edge.id === editingElement.id ? { ...edge, weight: newWeight } : edge
-                    ));
-                    }}
-                />
-                <p className="text-[9px] text-slate-600 mt-1 italic">* El peso debe ser un número entero positivo.</p>
-                </div>
+                /* --- CONTROLES PARA ARISTA --- */
+<div>
+    <label className="block text-[10px] text-slate-500 uppercase font-bold mb-1">Peso</label>
+    <input 
+        type="number" 
+        className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-white text-sm focus:outline-none focus:border-cyan-500 transition-all"
+        // Aseguramos que no falle si el peso es un string vacío
+        value={editingElement.weight === '' ? '' : editingElement.weight}
+        autoFocus
+        onChange={(e) => {
+            const val = e.target.value;
+            
+            // 1. Si el usuario borra todo, permitimos que el input quede vacío temporalmente
+            if (val === '') {
+                setEditingElement({ ...editingElement, weight: '' });
+                return;
+            }
+
+            const parsedVal = parseInt(val);
+            
+            // 2. Si por alguna razón el valor no es un número válido, no hacemos nada
+            if (isNaN(parsedVal)) return;
+            
+            // 3. Actualizamos el panel con el número que está escribiendo
+            setEditingElement({ ...editingElement, weight: parsedVal });
+            
+            // 4. Actualizamos el estado global de Edges SOLO si es un número válido y mayor a 0
+            if (parsedVal > 0) {
+                setEdges(prevEdges => prevEdges.map(edge => 
+                    edge.id === editingElement.id ? { ...edge, weight: parsedVal } : edge
+                ));
+            }
+        }}
+    />
+    <p className="text-[9px] text-slate-600 mt-1 italic">* El peso debe ser un número entero positivo.</p>
+</div>
             ) : (
                 /* --- CONTROLES PARA NODO --- */
                 <div className="space-y-4">
