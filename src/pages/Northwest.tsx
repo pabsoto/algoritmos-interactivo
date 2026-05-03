@@ -825,27 +825,28 @@ const Northwest = () => {
     const content = JSON.stringify(data, null, 2);
     const blob = new Blob([content], { type: "application/json" });
     
-    // Try to use File System Access API if available
-    if ("showSaveFilePicker" in window) {
+    // ── Priority: Native File System Explorer ──
+    const win = window as any;
+    if (win.showSaveFilePicker) {
       try {
-        const handle = await (window as any).showSaveFilePicker({
-          suggestedName: fileName || `transporte-${rows}x${cols}`,
+        const handle = await win.showSaveFilePicker({
+          suggestedName: `transporte-${rows}x${cols}.json`,
           types: [{
-            description: "JSON files",
+            description: "JSON File",
             accept: { "application/json": [".json"] }
           }]
         });
         const writable = await handle.createWritable();
         await writable.write(blob);
         await writable.close();
-        return;
-      } catch (err) {
-        // User cancelled or API not supported, fall back to traditional method
-        if ((err as Error).name !== "AbortError") {
-          console.error("Error saving file:", err);
-        }
+        return; // Success
+      } catch (err: any) {
+        if (err.name === "AbortError") return; // User cancelled
+        console.error("FileSystem API Error:", err);
       }
     }
+    
+    // ── Fallback: Traditional Download ──
     
     // Fallback to traditional download
     const url = URL.createObjectURL(blob);
