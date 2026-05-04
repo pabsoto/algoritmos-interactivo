@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import Layout from "@/components/Layout";
-import { Play, RotateCcw, Shuffle, HelpCircle, X } from "lucide-react";
+import { Play, RotateCcw, Shuffle, HelpCircle, X, Timer } from "lucide-react";
 
 type SortAlg = "selection" | "insertion" | "merge" | "shell";
 
@@ -61,9 +61,14 @@ const Ordenamiento = () => {
 	const [inputError, setInputError] = useState("");
 	const [showHelp, setShowHelp] = useState(false);
 
+	const [algoTime, setAlgoTime] = useState<number | null>(null);
+	const [vizTime, setVizTime] = useState<number | null>(null);
+
 	const cancelRef = useRef({ cancelled: false });
 	const speedRef = useRef(speed);
 	const vizRef = useRef<HTMLDivElement>(null);
+	const vizStartRef = useRef<number | null>(null);
+	const vizIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 	const [vizWidth, setVizWidth] = useState(600);
 	useEffect(() => { speedRef.current = speed; }, [speed]);
 
@@ -82,6 +87,62 @@ const Ordenamiento = () => {
 			setTimeout(r, Math.max(8, (101 - speedRef.current) * 2)),
 		);
 
+	const formatAlgoTime = (ms: number) => {
+		if (ms < 0.001) return "< 0.001 ms";
+		if (ms < 1) return `${ms.toFixed(3)} ms`;
+		return `${ms.toFixed(1)} ms`;
+	};
+
+	const formatVizTime = (ms: number) => {
+		if (ms < 1000) return `${(ms / 1000).toFixed(2)} s`;
+		return `${(ms / 1000).toFixed(1)} s`;
+	};
+
+	const measureAlgoTime = (src: number[]): number => {
+		const a = [...src];
+		const t0 = performance.now();
+		if (algorithm === "selection") {
+			const n = a.length;
+			for (let i = 0; i < n - 1; i++) {
+				let m = i;
+				for (let j = i + 1; j < n; j++) if (a[j] < a[m]) m = j;
+				if (m !== i) [a[i], a[m]] = [a[m], a[i]];
+			}
+		} else if (algorithm === "insertion") {
+			for (let i = 1; i < a.length; i++) {
+				const key = a[i];
+				let j = i - 1;
+				while (j >= 0 && a[j] > key) { a[j + 1] = a[j]; j--; }
+				a[j + 1] = key;
+			}
+		} else if (algorithm === "merge") {
+			const mg = (l: number, m: number, r: number) => {
+				const L = a.slice(l, m + 1), R = a.slice(m + 1, r + 1);
+				let i = 0, j = 0, k = l;
+				while (i < L.length && j < R.length) a[k++] = L[i] <= R[j] ? L[i++] : R[j++];
+				while (i < L.length) a[k++] = L[i++];
+				while (j < R.length) a[k++] = R[j++];
+			};
+			const ms = (l: number, r: number) => {
+				if (l >= r) return;
+				const m = Math.floor((l + r) / 2);
+				ms(l, m); ms(m + 1, r); mg(l, m, r);
+			};
+			ms(0, a.length - 1);
+		} else {
+			let gap = Math.floor(a.length / 2);
+			while (gap > 0) {
+				for (let i = gap; i < a.length; i++) {
+					const key = a[i]; let j = i;
+					while (j >= gap && a[j - gap] > key) { a[j] = a[j - gap]; j -= gap; }
+					a[j] = key;
+				}
+				gap = Math.floor(gap / 2);
+			}
+		}
+		return performance.now() - t0;
+	};
+
 	const resetHighlights = () => {
 		setComparing([]);
 		setSwapping([]);
@@ -89,6 +150,13 @@ const Ordenamiento = () => {
 		setKeyHighlight(null);
 		setSortedSet(new Set());
 		setMergeRange(null);
+	};
+
+	const clearTimers = () => {
+		if (vizIntervalRef.current) { clearInterval(vizIntervalRef.current); vizIntervalRef.current = null; }
+		vizStartRef.current = null;
+		setAlgoTime(null);
+		setVizTime(null);
 	};
 
 	const generateRandom = () => {
@@ -104,6 +172,7 @@ const Ordenamiento = () => {
 		setArray(arr);
 		setDisplayArray(arr);
 		resetHighlights();
+		clearTimers();
 		setStatusMsg(
 			`Arreglo de ${count} elementos generado. Presiona Iniciar para ordenar.`,
 		);
@@ -126,14 +195,19 @@ const Ordenamiento = () => {
 		setDisplayArray(clamped);
 		setInputError("");
 		resetHighlights();
+		clearTimers();
 		setStatusMsg(`Arreglo de ${clamped.length} elementos cargado.`);
 	};
 
 	const resetSort = () => {
 		cancelRef.current.cancelled = true;
+		if (vizIntervalRef.current) { clearInterval(vizIntervalRef.current); vizIntervalRef.current = null; }
+		vizStartRef.current = null;
 		setIsSorting(false);
 		setDisplayArray([...array]);
 		resetHighlights();
+		setAlgoTime(null);
+		setVizTime(null);
 		setStatusMsg("Reiniciado. Presiona Iniciar para volver a ordenar.");
 	};
 
@@ -317,6 +391,20 @@ const Ordenamiento = () => {
 	// ── START ─────────────────────────────────────────────────────────────────
 	const startSorting = async () => {
 		if (isSorting || !array.length) return;
+
+		// Measure pure algorithm time before animation
+		const measured = measureAlgoTime(array);
+		setAlgoTime(measured);
+
+		// Start visual timer
+		setVizTime(0);
+		vizStartRef.current = performance.now();
+		if (vizIntervalRef.current) clearInterval(vizIntervalRef.current);
+		vizIntervalRef.current = setInterval(() => {
+			if (vizStartRef.current !== null)
+				setVizTime(performance.now() - vizStartRef.current);
+		}, 100);
+
 		const tok = { cancelled: false };
 		cancelRef.current = tok;
 		const arr = [...array];
@@ -329,7 +417,11 @@ const Ordenamiento = () => {
 			else if (algorithm === "merge") await runMerge(arr, tok);
 			else await runShell(arr, tok);
 		} finally {
-			if (!tok.cancelled) setIsSorting(false);
+			if (!tok.cancelled) {
+				if (vizIntervalRef.current) { clearInterval(vizIntervalRef.current); vizIntervalRef.current = null; }
+				if (vizStartRef.current !== null) { setVizTime(performance.now() - vizStartRef.current); vizStartRef.current = null; }
+				setIsSorting(false);
+			}
 		}
 	};
 
@@ -724,6 +816,33 @@ const Ordenamiento = () => {
 							<p className="text-sm text-slate-300 font-mono leading-tight">
 								{statusMsg}
 							</p>
+						</div>
+
+						{/* Timer bar */}
+						<div className="grid grid-cols-2 gap-3">
+							<div className="bg-slate-800/40 border border-slate-700/60 rounded-xl px-4 py-3 flex items-center gap-3">
+								<Timer size={14} className="text-slate-400 flex-shrink-0" />
+								<div className="min-w-0">
+									<p className="text-xs text-slate-500 uppercase tracking-wider leading-none mb-1">Tiempo del algoritmo</p>
+									<p className="text-sm font-mono font-semibold text-indigo-300 leading-none">
+										{algoTime !== null ? formatAlgoTime(algoTime) : "—"}
+									</p>
+								</div>
+							</div>
+							<div className="bg-slate-800/40 border border-slate-700/60 rounded-xl px-4 py-3 flex items-center gap-3">
+								<div className="flex-shrink-0 relative">
+									<Timer size={14} className={isSorting ? "text-emerald-400" : "text-slate-400"} />
+									{isSorting && (
+										<span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+									)}
+								</div>
+								<div className="min-w-0">
+									<p className="text-xs text-slate-500 uppercase tracking-wider leading-none mb-1">Tiempo de visualización</p>
+									<p className={`text-sm font-mono font-semibold leading-none ${isSorting ? "text-emerald-300" : "text-indigo-300"}`}>
+										{vizTime !== null ? formatVizTime(vizTime) : "—"}
+									</p>
+								</div>
+							</div>
 						</div>
 
 						{/* Visualization */}

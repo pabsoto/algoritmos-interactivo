@@ -39,6 +39,7 @@ const Dijkstra = () => {
   const [nodeNameInput, setNodeNameInput] = useState("");
   const [editingEdge, setEditingEdge] = useState<EdgeType | null>(null);
   const [edgeValueInput, setEdgeValueInput] = useState("");
+  const [edgeMenuPosition, setEdgeMenuPosition] = useState({ x: 100, y: 100 });
   
   const [hoveredEdgeIndex, setHoveredEdgeIndex] = useState<number | null>(null);
 
@@ -48,86 +49,106 @@ const Dijkstra = () => {
 
   const maximizeLongestPath = () => {
     if (nodes.length === 0 || edges.length === 0) {
-        alert("Se necesitan nodos y aristas para calcular el camino más largo.");
-        return;
+      alert("Se necesitan nodos y aristas para calcular el camino más largo.");
+      return;
     }
 
     const startNodes = nodes.filter(n => !edges.some(e => e.to === n.id));
     if (startNodes.length === 0) {
-        alert("No se encontró un nodo inicial (sin aristas entrantes).");
-        return;
+      alert("No se encontró un nodo inicial (sin aristas entrantes). El grafo puede tener ciclos.");
+      return;
     }
     const startNode = startNodes[0];
 
     const endNodes = nodes.filter(n => !edges.some(e => e.from === n.id));
     if (endNodes.length === 0) {
-        alert("No se encontró un nodo final (sin aristas salientes).");
-        return;
+      alert("No se encontró un nodo final (sin aristas salientes). El grafo puede tener ciclos.");
+      return;
     }
     const endNode = endNodes[0];
 
+    // Topological sort via Kahn's algorithm — also serves as cycle detection
+    const inDegree: Record<number, number> = {};
+    nodes.forEach(n => { inDegree[n.id] = 0; });
+    edges.forEach(e => { inDegree[e.to] = (inDegree[e.to] || 0) + 1; });
+
+    const queue: number[] = nodes.filter(n => inDegree[n.id] === 0).map(n => n.id);
+    const topoOrder: number[] = [];
+
+    while (queue.length > 0) {
+      const curr = queue.shift()!;
+      topoOrder.push(curr);
+      edges.forEach(e => {
+        if (e.from === curr) {
+          inDegree[e.to]--;
+          if (inDegree[e.to] === 0) queue.push(e.to);
+        }
+      });
+    }
+
+    if (topoOrder.length !== nodes.length) {
+      alert("El grafo contiene ciclos. El camino más largo solo se puede calcular en grafos acíclicos dirigidos (DAG).");
+      return;
+    }
+
+    // Longest path DP in topological order
     const distances: Record<number, number> = {};
     const previous: Record<number, number | null> = {};
-    const unvisited = new Set<number>();
-
-    nodes.forEach(node => {
-        distances[node.id] = node.id === startNode.id ? 0 : -Infinity;
-        previous[node.id] = null;
-        unvisited.add(node.id);
+    nodes.forEach(n => {
+      distances[n.id] = n.id === startNode.id ? 0 : -Infinity;
+      previous[n.id] = null;
     });
 
-    while (unvisited.size > 0) {
-        let current: number | null = null;
-        let maxDistance = -Infinity;
-        
-        unvisited.forEach(nodeId => {
-        if (distances[nodeId] > maxDistance) {
-            maxDistance = distances[nodeId];
-            current = nodeId;
-        }
-        });
-
-        if (current === null || current === endNode.id) break;
-        
-        unvisited.delete(current);
-
-        edges.forEach(edge => {
-        if (edge.from === current) {
-            const weight = edge.weight < 0 ? 0 : edge.weight;
-            const alt = distances[current] + weight;
-
-            if (alt > distances[edge.to]) {
+    for (const curr of topoOrder) {
+      if (!Number.isFinite(distances[curr])) continue;
+      edges.forEach(edge => {
+        if (edge.from === curr) {
+          const alt = distances[curr] + edge.weight;
+          if (alt > distances[edge.to]) {
             distances[edge.to] = alt;
-            previous[edge.to] = current;
-            }
+            previous[edge.to] = curr;
+          }
         }
-        });
+      });
+    }
+
+    if (!Number.isFinite(distances[endNode.id])) {
+      alert("No existe un camino desde el nodo origen hasta el nodo destino.");
+      return;
     }
 
     const path: number[] = [];
     let curr: number | null = endNode.id;
-    
+    const seen = new Set<number>();
+
     while (curr !== null) {
-        path.unshift(curr);
-        curr = previous[curr];
+      if (seen.has(curr)) break;
+      seen.add(curr);
+      path.unshift(curr);
+      curr = previous[curr];
     }
 
     const pathEdgeIds: number[] = [];
     for (let i = 0; i < path.length - 1; i++) {
-        const edgeIndex = edges.findIndex(e => e.from === path[i] && e.to === path[i + 1]);
-        if (edgeIndex !== -1) {
+      const edgeIndex = edges.findIndex(e => e.from === path[i] && e.to === path[i + 1]);
+      if (edgeIndex !== -1) {
         pathEdgeIds.push(edgeIndex);
-        }
+      }
     }
 
     setResultPathEdges(pathEdgeIds);
     setNodeDistances(distances);
     setCalcMode('max');
-};
+  };
 
   const minimizeShortestPath = () => {
     if (nodes.length === 0 || edges.length === 0) {
       alert("Se necesitan nodos y aristas para calcular el camino más corto.");
+      return;
+    }
+
+    if (edges.some(e => e.weight < 0)) {
+      alert("El algoritmo de Dijkstra no soporta pesos negativos. Edita las aristas para usar solo valores positivos.");
       return;
     }
 
@@ -145,7 +166,6 @@ const Dijkstra = () => {
     }
     const endNode = endNodes[0];
 
-    // Implementar Dijkstra
     const distances: Record<number, number> = {};
     const previous: Record<number, number | null> = {};
     const unvisited = new Set<number>();
@@ -159,7 +179,7 @@ const Dijkstra = () => {
     while (unvisited.size > 0) {
       let current: number | null = null;
       let minDistance = Infinity;
-      
+
       unvisited.forEach(nodeId => {
         if (distances[nodeId] < minDistance) {
           minDistance = distances[nodeId];
@@ -167,13 +187,14 @@ const Dijkstra = () => {
         }
       });
 
-      if (current === null || current === endNode.id) break;
-      
+      if (current === null || distances[current] === Infinity) break;
+      if (current === endNode.id) break;
+
       unvisited.delete(current);
 
       edges.forEach(edge => {
-        if (edge.from === current) {
-          const alt = distances[current] + edge.weight;
+        if (edge.from === current && unvisited.has(edge.to)) {
+          const alt = distances[current!] + edge.weight;
           if (alt < distances[edge.to]) {
             distances[edge.to] = alt;
             previous[edge.to] = current;
@@ -182,12 +203,20 @@ const Dijkstra = () => {
       });
     }
 
+    if (!Number.isFinite(distances[endNode.id])) {
+      alert("No existe un camino desde el nodo origen hasta el nodo destino.");
+      return;
+    }
+
     const path: number[] = [];
-    let current: number | null = endNode.id;
-    
-    while (current !== null) {
-      path.unshift(current);
-      current = previous[current];
+    let curr: number | null = endNode.id;
+    const seen = new Set<number>();
+
+    while (curr !== null) {
+      if (seen.has(curr)) break;
+      seen.add(curr);
+      path.unshift(curr);
+      curr = previous[curr];
     }
 
     const pathEdgeIds: number[] = [];
@@ -292,7 +321,23 @@ const Dijkstra = () => {
 
   /* ---------- CREAR NODO ---------- */
   const handleCanvasClick = (e: React.MouseEvent) => {
-    if (showMenu || editingNode || editingEdge) return;
+    if (showMenu) {
+      setShowMenu(false);
+      setSelectedNode(null);
+      setTempConnection(null);
+      setWeightInput("1");
+      return;
+    }
+    if (editingNode) {
+      setEditingNode(null);
+      setNodeNameInput("");
+      return;
+    }
+    if (editingEdge) {
+      setEditingEdge(null);
+      setEdgeValueInput("");
+      return;
+    }
 
     const rect = containerRef.current!.getBoundingClientRect();
     const clickX = e.clientX - rect.left;
@@ -342,6 +387,13 @@ const Dijkstra = () => {
   /* ---------- CLICK DERECHO EN ARISTA ---------- */
   const handleEdgeRightClick = (e: React.MouseEvent, edge: EdgeType) => {
     e.preventDefault();
+    e.stopPropagation();
+    const rect = containerRef.current?.getBoundingClientRect();
+    if (rect) {
+      const x = Math.min(e.clientX - rect.left, rect.width - 260);
+      const y = Math.min(e.clientY - rect.top, rect.height - 220);
+      setEdgeMenuPosition({ x: Math.max(0, x), y: Math.max(0, y) });
+    }
     setEditingEdge(edge);
     setEdgeValueInput(edge.weight.toString());
   };
@@ -678,6 +730,8 @@ const Dijkstra = () => {
                     const endX = from.x + 6;
                     const endY = from.y - nodeRadius;
 
+                    const loopPathD = `M ${startX} ${startY} C ${control1X} ${control1Y}, ${control2X} ${control2Y}, ${endX} ${endY}`;
+
                     return (
                       <g
                         key={index}
@@ -687,17 +741,21 @@ const Dijkstra = () => {
                         }}
                         onMouseEnter={() => setHoveredEdgeIndex(index)}
                         onMouseLeave={() => setHoveredEdgeIndex(null)}
-                        style={{ 
-                          pointerEvents: "auto", 
+                        style={{
+                          pointerEvents: "auto",
                           cursor: "pointer",
                           opacity: hoveredEdgeIndex !== null && hoveredEdgeIndex !== index ? 0.2 : opacity
                         }}
                       >
                         <path
-                          d={`M ${startX} ${startY}
-                              C ${control1X} ${control1Y},
-                                ${control2X} ${control2Y},
-                                ${endX} ${endY}`}
+                          d={loopPathD}
+                          fill="none"
+                          stroke="#ffffff"
+                          strokeWidth={20}
+                          strokeOpacity={0.001}
+                        />
+                        <path
+                          d={loopPathD}
                           fill="none"
                           stroke={hoveredEdgeIndex === index ? "#a7f3d0" : strokeColor}
                           strokeWidth={hoveredEdgeIndex === index ? 5 : strokeWidth}
@@ -767,12 +825,19 @@ const Dijkstra = () => {
                       }}
                       onMouseEnter={() => setHoveredEdgeIndex(index)}
                       onMouseLeave={() => setHoveredEdgeIndex(null)}
-                      style={{ 
-                        pointerEvents: "auto", 
+                      style={{
+                        pointerEvents: "auto",
                         cursor: "pointer",
                         opacity: hoveredEdgeIndex !== null && hoveredEdgeIndex !== index ? 0.2 : opacity
                       }}
                     >
+                      <path
+                        d={path}
+                        fill="none"
+                        stroke="#ffffff"
+                        strokeWidth={20}
+                        strokeOpacity={0.001}
+                      />
                       <path
                         d={path}
                         fill="none"
@@ -943,7 +1008,7 @@ const Dijkstra = () => {
               {editingEdge && (
                 <div
                   className="absolute bg-slate-900/95 backdrop-blur-xl text-white p-6 rounded-3xl shadow-2xl z-50 w-60 border border-white/10"
-                  style={{ left: 100, top: 100 }}
+                  style={{ left: edgeMenuPosition.x, top: edgeMenuPosition.y }}
                   onMouseDown={(e) => e.stopPropagation()}
                   onClick={(e) => e.stopPropagation()}
                 >
@@ -1081,7 +1146,7 @@ const Dijkstra = () => {
                           <>
                             <div className="text-center mb-6">
                               <div className="flex flex-wrap items-center justify-center gap-3 text-3xl font-bold">
-                                {[...new Set(pathNodes)].map((node, index) => (
+                                {pathNodes.map((node, index) => (
                                   <div key={index} className="flex items-center">
                                     {index > 0 && <span className="text-rose-400 mx-2">→</span>}
                                     <span className="bg-rose-900/30 px-4 py-2 rounded-full border border-rose-500/30 text-rose-300">{node}</span>
