@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import Layout from "@/components/Layout";
-import { TreePine, Plus, Shuffle, Trash2, Download, Upload } from "lucide-react";
+import { TreePine, Plus, Shuffle, Trash2, Download, Upload, ZoomIn, ZoomOut, Maximize } from "lucide-react";
 
 interface BSTNode {
   id: string;
@@ -37,20 +37,54 @@ const Arboles = () => {
   const containerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [canvasSize, setCanvasSize] = useState({ width: 0, height: 600 });
+  
+  // Pan & Zoom state
+  const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
+  const [zoom, setZoom] = useState(1);
+  const [isPanning, setIsPanning] = useState(false);
+  const [mouseStart, setMouseStart] = useState({ x: 0, y: 0 });
+  const [treeOriginX, setTreeOriginX] = useState<number>(0);
+
+  const handleZoomIn = () => setZoom(prev => Math.min(prev + 0.1, 2));
+  const handleZoomOut = () => setZoom(prev => Math.max(prev - 0.1, 0.5));
+  const handleResetZoom = () => {
+    setZoom(1);
+    setPanOffset({ x: 0, y: 0 });
+  };
 
   useEffect(() => {
     const updateSize = () => {
       if (containerRef.current) {
+        const width = containerRef.current.clientWidth;
         setCanvasSize({
-          width: containerRef.current.clientWidth,
+          width,
           height: 600,
         });
+        if (treeOriginX === 0) setTreeOriginX(width / 2);
       }
     };
     updateSize();
     window.addEventListener("resize", updateSize);
     return () => window.removeEventListener("resize", updateSize);
-  }, []);
+  }, [treeOriginX]);
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (editingNode) return;
+    setIsPanning(true);
+    setMouseStart({ x: e.clientX - panOffset.x, y: e.clientY - panOffset.y });
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!isPanning) return;
+    setPanOffset({
+      x: e.clientX - mouseStart.x,
+      y: e.clientY - mouseStart.y
+    });
+  };
+
+  const handleMouseUp = () => {
+    setIsPanning(false);
+  };
 
   const insertNode = (value: number, node: BSTNode | null): BSTNode => {
     if (!node) {
@@ -67,6 +101,9 @@ const Arboles = () => {
   const handleAddNode = () => {
     const val = parseInt(inputValue);
     if (isNaN(val)) return;
+    if (!root) {
+      setTreeOriginX(canvasSize.width / 2 - panOffset.x);
+    }
     const newRoot = insertNode(val, root ? { ...root } : null);
     setRoot(newRoot);
     setInputValue("");
@@ -74,6 +111,9 @@ const Arboles = () => {
 
   const handleAddRandomNode = () => {
     const val = Math.floor(Math.random() * 100) + 1;
+    if (!root) {
+      setTreeOriginX(canvasSize.width / 2 - panOffset.x);
+    }
     const newRoot = insertNode(val, root ? { ...root } : null);
     setRoot(newRoot);
   };
@@ -124,6 +164,34 @@ const Arboles = () => {
     setEditingNode(null);
   };
 
+  const handleSetAsRoot = () => {
+    if (!editingNode || !root) return;
+    
+    // Get all values currently in the tree
+    const allValues = getInOrder(root);
+    const newRootValue = editingNode.value;
+    
+    // Filter out the value that will be the new root
+    // (assuming values are unique for simplicity in BST)
+    const otherValues = allValues.filter(v => v !== newRootValue);
+    
+    // Create new root
+    let newTree: BSTNode = { 
+      id: Math.random().toString(36).substr(2, 9), 
+      value: newRootValue, 
+      left: null, 
+      right: null 
+    };
+    
+    // Re-insert all other values
+    otherValues.forEach(val => {
+      newTree = insertNode(val, newTree);
+    });
+    
+    setRoot(newTree);
+    setEditingNode(null);
+  };
+
   const handleExportTree = () => {
     if (!root) return;
     const fileName = prompt("Introduce el nombre del archivo:", "arbol-binario");
@@ -146,6 +214,7 @@ const Arboles = () => {
     reader.onload = (e) => {
       try {
         const treeData = JSON.parse(e.target?.result as string);
+        setTreeOriginX(canvasSize.width / 2 - panOffset.x);
         setRoot(treeData);
       } catch (error) {
         alert("Error al importar el árbol. El archivo no es un JSON válido.");
@@ -197,23 +266,60 @@ const Arboles = () => {
   const handleReconstruct = () => {
     try {
       const inNodes = inOrderInput.split(/[, ]+/).filter(x => x).map(Number);
+      
+      // Basic validation
+      if (inNodes.some(isNaN)) {
+        alert("Los datos contienen valores no numéricos.");
+        return;
+      }
+
+      if (new Set(inNodes).size !== inNodes.length) {
+        alert("La reconstrucción requiere valores únicos en los recorridos.");
+        return;
+      }
+
+      let reconstructed: BSTNode | null = null;
+      setTreeOriginX(canvasSize.width / 2 - panOffset.x);
+
       if (reconstructType === "pre-in") {
         const preNodes = preOrderInput.split(/[, ]+/).filter(x => x).map(Number);
         if (preNodes.length !== inNodes.length) {
-          alert("Los recorridos deben tener el mismo número de elementos.");
+          alert("Los recorridos Pre-order e In-order deben tener el mismo tamaño.");
           return;
         }
-        setRoot(buildTreeFromPreIn(preNodes, inNodes));
+        // Check if they contain the same elements
+        const preSet = new Set(preNodes);
+        if (!inNodes.every(val => preSet.has(val))) {
+          alert("Error: Los recorridos Pre-order e In-order no contienen los mismos elementos.");
+          return;
+        }
+        reconstructed = buildTreeFromPreIn(preNodes, inNodes);
       } else {
         const postNodes = postOrderInput.split(/[, ]+/).filter(x => x).map(Number);
         if (postNodes.length !== inNodes.length) {
-          alert("Los recorridos deben tener el mismo número de elementos.");
+          alert("Los recorridos Post-order e In-order deben tener el mismo tamaño.");
           return;
         }
-        setRoot(buildTreeFromPostIn(postNodes, inNodes));
+        // Check if they contain the same elements
+        const postSet = new Set(postNodes);
+        if (!inNodes.every(val => postSet.has(val))) {
+          alert("Error: Los recorridos Post-order e In-order no contienen los mismos elementos.");
+          return;
+        }
+        reconstructed = buildTreeFromPostIn(postNodes, inNodes);
+      }
+
+      if (reconstructed) {
+        setRoot(reconstructed);
+        setMode("visualize");
+        setPreOrderInput("");
+        setInOrderInput("");
+        setPostOrderInput("");
+      } else {
+        alert("No se pudo reconstruir el árbol. Verifica que el orden de los elementos sea consistente.");
       }
     } catch (e) {
-      alert("Error al parsear los datos. Asegúrate de usar números separados por comas o espacios.");
+      alert("Error crítico al procesar los datos. Verifica el formato de entrada.");
     }
   };
 
@@ -224,8 +330,8 @@ const Arboles = () => {
     }
 
     const positions: NodePosition[] = [];
-    const levelHeight = 80;
-    const initialSpread = canvasSize.width / 4;
+    const levelHeight = 100; // Increased spacing
+    const initialSpread = canvasSize.width / 3.5; // Increased initial spread
 
     const calculatePositions = (
       node: BSTNode,
@@ -249,7 +355,7 @@ const Arboles = () => {
           node.left,
           x - spread,
           y + levelHeight,
-          spread / 1.8,
+          spread / 1.6, // Less aggressive reduction
           x,
           y
         );
@@ -259,16 +365,16 @@ const Arboles = () => {
           node.right,
           x + spread,
           y + levelHeight,
-          spread / 1.8,
+          spread / 1.6, // Less aggressive reduction
           x,
           y
         );
       }
     };
 
-    calculatePositions(root, canvasSize.width / 2, 60, initialSpread, null, null);
+    calculatePositions(root, treeOriginX, 60, initialSpread, null, null);
     setNodePositions(positions);
-  }, [root, canvasSize.width]);
+  }, [root, canvasSize.width, treeOriginX]);
 
   const getPreOrder = (node: BSTNode | null, result: number[] = []): number[] => {
     if (!node) return result;
@@ -357,6 +463,68 @@ const Arboles = () => {
         <div className="max-w-7xl mx-auto flex gap-8">
           {/* PANEL */}
           <aside className="w-64 space-y-4">
+            {/* PANEL DE EDICIÓN - Ahora en el sidebar */}
+            {editingNode && (
+              <div className="bg-emerald-600/10 backdrop-blur-xl border border-emerald-500/30 rounded-3xl p-4 shadow-2xl animate-in slide-in-from-left duration-300">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-sm font-bold text-emerald-400 flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                    Editando: {editingNode.value}
+                  </h2>
+                  <button 
+                    onClick={() => setEditingNode(null)}
+                    className="text-slate-400 hover:text-white transition-colors"
+                  >
+                    <Plus size={16} className="rotate-45" />
+                  </button>
+                </div>
+                
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <label className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Nuevo Valor</label>
+                    <input
+                      type="number"
+                      value={editValueInput}
+                      onChange={(e) => setEditValueInput(e.target.value)}
+                      className="w-full p-2.5 rounded-xl bg-slate-900 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all text-sm"
+                      autoFocus
+                    />
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      onClick={handleConfirmEdit}
+                      className="bg-emerald-600 hover:bg-emerald-700 py-2 rounded-xl transition-all font-bold text-[10px] text-white shadow-lg shadow-emerald-900/20"
+                    >
+                      GUARDAR
+                    </button>
+                    <button
+                      onClick={() => setEditingNode(null)}
+                      className="bg-slate-800 hover:bg-slate-700 py-2 rounded-xl transition-all font-bold text-[10px] text-white border border-white/5"
+                    >
+                      CANCELAR
+                    </button>
+                  </div>
+
+                  <div className="h-px bg-white/5 my-2" />
+                  
+                  <button
+                    onClick={handleSetAsRoot}
+                    className="w-full bg-blue-600 hover:bg-blue-700 py-2 rounded-xl transition-all font-bold text-[10px] text-white flex items-center justify-center gap-2"
+                  >
+                    <TreePine size={12} /> CONVERTIR EN RAÍZ
+                  </button>
+                  
+                  <button
+                    onClick={handleDeleteNode}
+                    className="w-full bg-red-600/20 hover:bg-red-600 text-red-400 hover:text-white py-2 rounded-xl transition-all font-bold text-[10px] border border-red-500/30"
+                  >
+                    ELIMINAR NODO
+                  </button>
+                </div>
+              </div>
+            )}
+
             {mode === "visualize" ? (
               <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-4 shadow-2xl">
                 <h2 className="text-lg font-bold text-white mb-4">Control de Nodos</h2>
@@ -500,126 +668,151 @@ const Arboles = () => {
           <div className="flex-1">
             <div
               ref={containerRef}
-              className="relative rounded-3xl border border-white/10 shadow-2xl overflow-hidden"
+              onMouseDown={handleMouseDown}
+              onMouseMove={handleMouseMove}
+              onMouseUp={handleMouseUp}
+              onMouseLeave={handleMouseUp}
+              className={`relative rounded-3xl border border-white/10 shadow-2xl overflow-hidden cursor-grab active:cursor-grabbing transition-colors ${isPanning ? 'bg-slate-900/50' : ''}`}
               style={{
                 height: "600px",
                 background: "radial-gradient(circle at center, #0f172a 0%, #020617 100%)",
               }}
             >
-              {/* GRID */}
-              <div
-                className="absolute inset-0 opacity-10"
-                style={{
-                  backgroundImage: "linear-gradient(to right, white 1px, transparent 1px), linear-gradient(to bottom, white 1px, transparent 1px)",
-                  backgroundSize: "40px 40px",
+              {/* DRAGGABLE WRAPPER */}
+              <div 
+                style={{ 
+                  transform: `translate(${panOffset.x}px, ${panOffset.y}px) scale(${zoom})`,
+                  transformOrigin: 'center center',
+                  width: '100%',
+                  height: '100%',
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  pointerEvents: 'none',
+                  transition: isPanning ? 'none' : 'transform 0.2s ease-out'
                 }}
-              />
-
-              {/* SVG for connections */}
-              <svg className="absolute inset-0 w-full h-full pointer-events-none">
-                <defs>
-                   <filter id="glow">
-                    <feGaussianBlur stdDeviation="2.5" result="coloredBlur" />
-                    <feMerge>
-                      <feMergeNode in="coloredBlur" />
-                      <feMergeNode in="SourceGraphic" />
-                    </feMerge>
-                  </filter>
-                  <linearGradient id="line-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stopColor="#10b981" />
-                    <stop offset="100%" stopColor="#3b82f6" />
-                  </linearGradient>
-                </defs>
-                {nodePositions.map((pos, idx) => (
-                  pos.parentX !== null && pos.parentY !== null && (
-                    <line
-                      key={`line-${idx}`}
-                      x1={pos.parentX}
-                      y1={pos.parentY}
-                      x2={pos.x}
-                      y2={pos.y}
-                      stroke="url(#line-gradient)"
-                      strokeWidth="2.5"
-                      strokeLinecap="round"
-                      style={{ filter: 'url(#glow)', opacity: 0.6 }}
-                    />
-                  )
-                ))}
-              </svg>
-
-              {/* Nodes */}
-              {nodePositions.map((pos, idx) => (
+              >
+                {/* GRID - Extended to avoid edges during pan */}
                 <div
-                  key={`node-${idx}`}
-                  onContextMenu={(e) => {
-                    e.preventDefault();
-                    setEditingNode(pos);
-                    setEditValueInput(pos.value.toString());
-                  }}
-                  className="absolute animate-in zoom-in duration-500 flex items-center justify-center w-12 h-12 rounded-full text-white text-sm font-bold shadow-2xl transition-all hover:scale-110 cursor-pointer"
+                  className="absolute opacity-10"
                   style={{
-                    left: pos.x - 24,
-                    top: pos.y - 24,
-                    background: "linear-gradient(135deg, #10b981, #3b82f6)",
-                    boxShadow: "0 0 20px rgba(16, 185, 129, 0.4)",
-                    zIndex: 10,
-                    border: "2px solid rgba(255, 255, 255, 0.1)"
+                    width: '10000px',
+                    height: '10000px',
+                    top: '-5000px',
+                    left: '-5000px',
+                    backgroundImage: "linear-gradient(to right, white 1px, transparent 1px), linear-gradient(to bottom, white 1px, transparent 1px)",
+                    backgroundSize: "40px 40px",
+                    pointerEvents: 'none'
                   }}
+                />
+
+                {/* SVG for connections - overflow visible fixes clipping */}
+                <svg 
+                  className="absolute inset-0 pointer-events-none"
+                  style={{ overflow: 'visible', width: '1px', height: '1px' }}
                 >
-                  {pos.value}
-                </div>
-              ))}
-              
-              {/* EDITING PANEL */}
-              {editingNode && (
-                <div
-                  className="absolute bg-slate-900/95 backdrop-blur-xl text-white p-6 rounded-3xl shadow-2xl z-50 w-60 border border-white/20 animate-in fade-in zoom-in duration-200"
-                  style={{ 
-                    left: Math.min(editingNode.x + 30, canvasSize.width - 270), 
-                    top: Math.min(editingNode.y, canvasSize.height - 200) 
-                  }}
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <p className="text-sm font-semibold mb-4 text-slate-300">Editar Nodo</p>
-                  <input
-                    type="number"
-                    value={editValueInput}
-                    onChange={(e) => setEditValueInput(e.target.value)}
-                    className="w-full p-2 rounded-xl bg-slate-800 border border-white/10 mb-4 text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                    autoFocus
-                  />
-                  <div className="space-y-2">
-                    <div className="flex gap-2">
-                      <button
-                        onClick={handleConfirmEdit}
-                        className="flex-1 bg-emerald-600 hover:bg-emerald-700 py-2 rounded-xl transition font-bold text-xs"
-                      >
-                        Aceptar
-                      </button>
-                      <button
-                        onClick={() => setEditingNode(null)}
-                        className="flex-1 bg-slate-700 hover:bg-slate-600 py-2 rounded-xl transition font-bold text-xs"
-                      >
-                        Cancelar
-                      </button>
-                    </div>
-                    <button
-                      onClick={handleDeleteNode}
-                      className="w-full bg-red-600 hover:bg-red-700 py-2 rounded-xl transition font-bold text-xs"
-                    >
-                      Eliminar Nodo
-                    </button>
+                  <defs>
+                    <filter id="glow">
+                      <feGaussianBlur stdDeviation="2.5" result="coloredBlur" />
+                      <feMerge>
+                        <feMergeNode in="coloredBlur" />
+                        <feMergeNode in="SourceGraphic" />
+                      </feMerge>
+                    </filter>
+                    <linearGradient id="line-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                      <stop offset="0%" stopColor="#10b981" />
+                      <stop offset="100%" stopColor="#3b82f6" />
+                    </linearGradient>
+                  </defs>
+                  {nodePositions.map((pos, idx) => (
+                    pos.parentX !== null && pos.parentY !== null && (
+                      <line
+                        key={`line-${idx}`}
+                        x1={pos.parentX}
+                        y1={pos.parentY}
+                        x2={pos.x}
+                        y2={pos.y}
+                        stroke="url(#line-gradient)"
+                        strokeWidth="2.5"
+                        strokeLinecap="round"
+                        style={{ filter: 'url(#glow)', opacity: 0.6 }}
+                      />
+                    )
+                  ))}
+                </svg>
+
+                {/* Nodes */}
+                {nodePositions.map((pos, idx) => (
+                  <div
+                    key={`node-${idx}`}
+                    onMouseDown={(e) => e.stopPropagation()} 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setEditingNode(pos);
+                      setEditValueInput(pos.value.toString());
+                    }}
+                    onContextMenu={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setEditingNode(pos);
+                      setEditValueInput(pos.value.toString());
+                    }}
+                    className={`absolute animate-in zoom-in duration-500 flex items-center justify-center w-12 h-12 rounded-full text-white text-sm font-bold shadow-2xl transition-all hover:scale-110 cursor-pointer pointer-events-auto border-2 ${editingNode?.id === pos.id ? 'border-emerald-400 scale-110 shadow-emerald-500/50' : 'border-white/10'}`}
+                    style={{
+                      left: pos.x - 24,
+                      top: pos.y - 24,
+                      background: editingNode?.id === pos.id 
+                        ? "linear-gradient(135deg, #059669, #2563eb)" 
+                        : "linear-gradient(135deg, #10b981, #3b82f6)",
+                      boxShadow: editingNode?.id === pos.id 
+                        ? "0 0 30px rgba(16, 185, 129, 0.6)" 
+                        : "0 0 20px rgba(16, 185, 129, 0.4)",
+                      zIndex: editingNode?.id === pos.id ? 20 : 10,
+                    }}
+                  >
+                    {pos.value}
                   </div>
-                </div>
-              )}
+                ))}
+              </div>
               
               {nodePositions.length === 0 && (
-                <div className="flex flex-col items-center justify-center h-full text-slate-500 gap-4">
+                <div className="flex flex-col items-center justify-center h-full text-slate-500 gap-4 pointer-events-none">
                   <TreePine size={64} className="opacity-20" />
                   <p className="italic text-lg">El lienzo está vacío. ¡Añade tu primer nodo!</p>
                 </div>
               )}
+
+              {/* ZOOM CONTROLS */}
+              <div className="absolute bottom-6 right-6 flex flex-col gap-2 z-30">
+                <div className="bg-slate-900/80 backdrop-blur-md border border-white/10 rounded-2xl p-1.5 shadow-2xl flex flex-col gap-1">
+                  <button
+                    onClick={handleZoomIn}
+                    className="p-2.5 rounded-xl hover:bg-emerald-500/20 text-slate-400 hover:text-emerald-400 transition-all"
+                    title="Acercar"
+                  >
+                    <ZoomIn size={20} />
+                  </button>
+                  <button
+                    onClick={handleResetZoom}
+                    className="p-2.5 rounded-xl hover:bg-blue-500/20 text-slate-400 hover:text-blue-400 transition-all"
+                    title="Restablecer vista"
+                  >
+                    <Maximize size={20} />
+                  </button>
+                  <button
+                    onClick={handleZoomOut}
+                    className="p-2.5 rounded-xl hover:bg-red-500/20 text-slate-400 hover:text-red-400 transition-all"
+                    title="Alejar"
+                  >
+                    <ZoomOut size={20} />
+                  </button>
+                </div>
+                <div className="bg-slate-900/80 backdrop-blur-md border border-white/10 rounded-xl px-3 py-1.5 shadow-2xl text-[10px] font-bold text-slate-500 text-center uppercase tracking-widest">
+                  {Math.round(zoom * 100)}%
+                </div>
+              </div>
             </div>
+
           </div>
         </div>
       </div>
