@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, ChangeEvent } from "react";
 import Layout from "@/components/Layout";
-import { Play, RotateCcw, Shuffle, HelpCircle, X, Timer } from "lucide-react";
+import { Play, RotateCcw, Shuffle, HelpCircle, X, Timer, Download, Upload } from "lucide-react";
 
 type SortAlg = "selection" | "insertion" | "merge" | "shell";
 
@@ -197,6 +197,62 @@ const Ordenamiento = () => {
 		resetHighlights();
 		clearTimers();
 		setStatusMsg(`Arreglo de ${clamped.length} elementos cargado.`);
+	};
+
+	const handleExport = () => {
+		const fileName = prompt(
+			"Ingresa el nombre para tu archivo:",
+			"arreglo-desordenado",
+		);
+
+		if (fileName === null || fileName.trim() === "") return;
+
+		const data = array.join(", ");
+		const blob = new Blob([data], { type: "text/plain" });
+		const url = URL.createObjectURL(blob);
+		const a = document.createElement("a");
+		a.href = url;
+
+		const finalName = fileName.endsWith(".txt")
+			? fileName
+			: `${fileName}.txt`;
+		a.download = finalName;
+
+		a.click();
+		URL.revokeObjectURL(url);
+	};
+
+	const handleImport = (e: ChangeEvent<HTMLInputElement>) => {
+		const file = e.target.files?.[0];
+		if (!file) return;
+		const reader = new FileReader();
+		reader.onload = (event) => {
+			try {
+				const text = event.target?.result as string;
+				const parts = text.split(/[\s,;]+/).filter(Boolean);
+				const nums = parts.map((p) => parseInt(p, 10));
+				if (!nums.length || nums.some(isNaN)) {
+					alert("El archivo no contiene un arreglo válido.");
+					return;
+				}
+				if (nums.length > 60) {
+					alert("Máximo 60 elementos.");
+					return;
+				}
+				const clamped = nums.map((n) => Math.min(999, Math.max(1, Math.abs(n))));
+				setArray(clamped);
+				setDisplayArray(clamped);
+				setManualInput(clamped.join(", "));
+				setInputMode("manual");
+				resetHighlights();
+				clearTimers();
+				setStatusMsg(`Arreglo de ${clamped.length} elementos cargado desde archivo.`);
+			} catch (err) {
+				alert("Error al leer el archivo.");
+			}
+		};
+		reader.readAsText(file);
+		e.target.value = "";
 	};
 
 	const resetSort = () => {
@@ -516,6 +572,25 @@ const Ordenamiento = () => {
 							</p>
 						</div>
 						<div className="flex items-center gap-3">
+							<label className={`flex items-center gap-2 px-4 py-2 text-sm font-medium text-slate-300 rounded-md transition-all ${isSorting ? 'opacity-40 cursor-not-allowed' : 'hover:bg-slate-800 hover:text-white cursor-pointer'}`}>
+								<Upload size={15} />
+								Importar
+								<input
+									type="file"
+									accept=".txt"
+									onChange={handleImport}
+									className="hidden"
+									disabled={isSorting}
+								/>
+							</label>
+							<button
+								onClick={handleExport}
+								disabled={!array.length || isSorting}
+								className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-slate-300 rounded-md transition-all hover:bg-slate-800 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed"
+							>
+								<Download size={15} />
+								Exportar
+							</button>
 							<button
 								onClick={resetSort}
 								disabled={!array.length}
