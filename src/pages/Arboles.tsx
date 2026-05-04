@@ -1,6 +1,17 @@
 import { useState, useRef, useEffect } from "react";
 import Layout from "@/components/Layout";
-import { TreePine, Plus, Shuffle, Trash2, Download, Upload, ZoomIn, ZoomOut, Maximize } from "lucide-react";
+import {
+  TreePine,
+  Plus,
+  Shuffle,
+  Trash2,
+  Download,
+  Upload,
+  ZoomIn,
+  ZoomOut,
+  Maximize,
+  Settings,
+} from "lucide-react";
 
 interface BSTNode {
   id: string;
@@ -22,22 +33,24 @@ const Arboles = () => {
   const [mode, setMode] = useState<"visualize" | "reconstruct">("visualize");
   const [root, setRoot] = useState<BSTNode | null>(null);
   const [inputValue, setInputValue] = useState<string>("");
-  
+
   // Edit state
   const [editingNode, setEditingNode] = useState<NodePosition | null>(null);
   const [editValueInput, setEditValueInput] = useState<string>("");
-  
+
   // Reconstruct state
   const [preOrderInput, setPreOrderInput] = useState<string>("");
   const [inOrderInput, setInOrderInput] = useState<string>("");
   const [postOrderInput, setPostOrderInput] = useState<string>("");
-  const [reconstructType, setReconstructType] = useState<"pre-in" | "post-in">("pre-in");
+  const [reconstructType, setReconstructType] = useState<"pre-in" | "post-in">(
+    "pre-in",
+  );
 
   const [nodePositions, setNodePositions] = useState<NodePosition[]>([]);
   const containerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [canvasSize, setCanvasSize] = useState({ width: 0, height: 600 });
-  
+
   // Pan & Zoom state
   const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
@@ -45,8 +58,8 @@ const Arboles = () => {
   const [mouseStart, setMouseStart] = useState({ x: 0, y: 0 });
   const [treeOriginX, setTreeOriginX] = useState<number>(0);
 
-  const handleZoomIn = () => setZoom(prev => Math.min(prev + 0.1, 2));
-  const handleZoomOut = () => setZoom(prev => Math.max(prev - 0.1, 0.5));
+  const handleZoomIn = () => setZoom((prev) => Math.min(prev + 0.1, 2));
+  const handleZoomOut = () => setZoom((prev) => Math.max(prev - 0.1, 0.5));
   const handleResetZoom = () => {
     setZoom(1);
     setPanOffset({ x: 0, y: 0 });
@@ -78,7 +91,7 @@ const Arboles = () => {
     if (!isPanning) return;
     setPanOffset({
       x: e.clientX - mouseStart.x,
-      y: e.clientY - mouseStart.y
+      y: e.clientY - mouseStart.y,
     });
   };
 
@@ -88,12 +101,17 @@ const Arboles = () => {
 
   const insertNode = (value: number, node: BSTNode | null): BSTNode => {
     if (!node) {
-      return { id: Math.random().toString(36).substr(2, 9), value, left: null, right: null };
+      return {
+        id: Math.random().toString(36).slice(2, 11),
+        value,
+        left: null,
+        right: null,
+      };
     }
     if (value < node.value) {
-      node.left = insertNode(value, node.left);
+      return { ...node, left: insertNode(value, node.left) };
     } else if (value > node.value) {
-      node.right = insertNode(value, node.right);
+      return { ...node, right: insertNode(value, node.right) };
     }
     return node;
   };
@@ -126,7 +144,11 @@ const Arboles = () => {
     setPostOrderInput("");
   };
 
-  const updateRecursive = (node: BSTNode | null, id: string, newValue: number): BSTNode | null => {
+  const updateRecursive = (
+    node: BSTNode | null,
+    id: string,
+    newValue: number,
+  ): BSTNode | null => {
     if (!node) return null;
     if (node.id === id) {
       return { ...node, value: newValue };
@@ -134,17 +156,20 @@ const Arboles = () => {
     return {
       ...node,
       left: updateRecursive(node.left, id, newValue),
-      right: updateRecursive(node.right, id, newValue)
+      right: updateRecursive(node.right, id, newValue),
     };
   };
 
-  const deleteRecursive = (node: BSTNode | null, id: string): BSTNode | null => {
+  const deleteRecursive = (
+    node: BSTNode | null,
+    id: string,
+  ): BSTNode | null => {
     if (!node) return null;
     if (node.id === id) return null; // Simple delete (doesn't handle BST restructuring)
     return {
       ...node,
       left: deleteRecursive(node.left, id),
-      right: deleteRecursive(node.right, id)
+      right: deleteRecursive(node.right, id),
     };
   };
 
@@ -166,35 +191,38 @@ const Arboles = () => {
 
   const handleSetAsRoot = () => {
     if (!editingNode || !root) return;
-    
+
     // Get all values currently in the tree
     const allValues = getInOrder(root);
     const newRootValue = editingNode.value;
-    
+
     // Filter out the value that will be the new root
     // (assuming values are unique for simplicity in BST)
-    const otherValues = allValues.filter(v => v !== newRootValue);
-    
+    const otherValues = allValues.filter((v) => v !== newRootValue);
+
     // Create new root
-    let newTree: BSTNode = { 
-      id: Math.random().toString(36).substr(2, 9), 
-      value: newRootValue, 
-      left: null, 
-      right: null 
+    let newTree: BSTNode = {
+      id: Math.random().toString(36).slice(2, 11),
+      value: newRootValue,
+      left: null,
+      right: null,
     };
-    
+
     // Re-insert all other values
-    otherValues.forEach(val => {
+    otherValues.forEach((val) => {
       newTree = insertNode(val, newTree);
     });
-    
+
     setRoot(newTree);
     setEditingNode(null);
   };
 
   const handleExportTree = () => {
     if (!root) return;
-    const fileName = prompt("Introduce el nombre del archivo:", "arbol-binario");
+    const fileName = prompt(
+      "Introduce el nombre del archivo:",
+      "arbol-binario",
+    );
     if (!fileName) return;
 
     const dataStr = JSON.stringify(root, null, 2);
@@ -223,50 +251,71 @@ const Arboles = () => {
     reader.readAsText(file);
   };
 
-  const buildTreeFromPreIn = (pre: number[], inorder: number[]): BSTNode | null => {
+  const buildTreeFromPreIn = (
+    pre: number[],
+    inorder: number[],
+  ): BSTNode | null => {
     if (pre.length === 0 || inorder.length === 0) return null;
-    
+
     const rootVal = pre[0];
-    const rootNode: BSTNode = { 
-      id: Math.random().toString(36).substr(2, 9), 
-      value: rootVal, 
-      left: null, 
-      right: null 
+    const rootNode: BSTNode = {
+      id: Math.random().toString(36).slice(2, 11),
+      value: rootVal,
+      left: null,
+      right: null,
     };
-    
+
     const mid = inorder.indexOf(rootVal);
     if (mid === -1) return null;
-    
-    rootNode.left = buildTreeFromPreIn(pre.slice(1, mid + 1), inorder.slice(0, mid));
-    rootNode.right = buildTreeFromPreIn(pre.slice(mid + 1), inorder.slice(mid + 1));
-    
+
+    rootNode.left = buildTreeFromPreIn(
+      pre.slice(1, mid + 1),
+      inorder.slice(0, mid),
+    );
+    rootNode.right = buildTreeFromPreIn(
+      pre.slice(mid + 1),
+      inorder.slice(mid + 1),
+    );
+
     return rootNode;
   };
 
-  const buildTreeFromPostIn = (post: number[], inorder: number[]): BSTNode | null => {
+  const buildTreeFromPostIn = (
+    post: number[],
+    inorder: number[],
+  ): BSTNode | null => {
     if (post.length === 0 || inorder.length === 0) return null;
-    
+
     const rootVal = post[post.length - 1];
-    const rootNode: BSTNode = { 
-      id: Math.random().toString(36).substr(2, 9), 
-      value: rootVal, 
-      left: null, 
-      right: null 
+    const rootNode: BSTNode = {
+      id: Math.random().toString(36).slice(2, 11),
+      value: rootVal,
+      left: null,
+      right: null,
     };
-    
+
     const mid = inorder.indexOf(rootVal);
     if (mid === -1) return null;
-    
-    rootNode.left = buildTreeFromPostIn(post.slice(0, mid), inorder.slice(0, mid));
-    rootNode.right = buildTreeFromPostIn(post.slice(mid, post.length - 1), inorder.slice(mid + 1));
-    
+
+    rootNode.left = buildTreeFromPostIn(
+      post.slice(0, mid),
+      inorder.slice(0, mid),
+    );
+    rootNode.right = buildTreeFromPostIn(
+      post.slice(mid, post.length - 1),
+      inorder.slice(mid + 1),
+    );
+
     return rootNode;
   };
 
   const handleReconstruct = () => {
     try {
-      const inNodes = inOrderInput.split(/[, ]+/).filter(x => x).map(Number);
-      
+      const inNodes = inOrderInput
+        .split(/[, ]+/)
+        .filter((x) => x)
+        .map(Number);
+
       // Basic validation
       if (inNodes.some(isNaN)) {
         alert("Los datos contienen valores no numéricos.");
@@ -282,28 +331,42 @@ const Arboles = () => {
       setTreeOriginX(canvasSize.width / 2 - panOffset.x);
 
       if (reconstructType === "pre-in") {
-        const preNodes = preOrderInput.split(/[, ]+/).filter(x => x).map(Number);
+        const preNodes = preOrderInput
+          .split(/[, ]+/)
+          .filter((x) => x)
+          .map(Number);
         if (preNodes.length !== inNodes.length) {
-          alert("Los recorridos Pre-order e In-order deben tener el mismo tamaño.");
+          alert(
+            "Los recorridos Pre-order e In-order deben tener el mismo tamaño.",
+          );
           return;
         }
         // Check if they contain the same elements
         const preSet = new Set(preNodes);
-        if (!inNodes.every(val => preSet.has(val))) {
-          alert("Error: Los recorridos Pre-order e In-order no contienen los mismos elementos.");
+        if (!inNodes.every((val) => preSet.has(val))) {
+          alert(
+            "Error: Los recorridos Pre-order e In-order no contienen los mismos elementos.",
+          );
           return;
         }
         reconstructed = buildTreeFromPreIn(preNodes, inNodes);
       } else {
-        const postNodes = postOrderInput.split(/[, ]+/).filter(x => x).map(Number);
+        const postNodes = postOrderInput
+          .split(/[, ]+/)
+          .filter((x) => x)
+          .map(Number);
         if (postNodes.length !== inNodes.length) {
-          alert("Los recorridos Post-order e In-order deben tener el mismo tamaño.");
+          alert(
+            "Los recorridos Post-order e In-order deben tener el mismo tamaño.",
+          );
           return;
         }
         // Check if they contain the same elements
         const postSet = new Set(postNodes);
-        if (!inNodes.every(val => postSet.has(val))) {
-          alert("Error: Los recorridos Post-order e In-order no contienen los mismos elementos.");
+        if (!inNodes.every((val) => postSet.has(val))) {
+          alert(
+            "Error: Los recorridos Post-order e In-order no contienen los mismos elementos.",
+          );
           return;
         }
         reconstructed = buildTreeFromPostIn(postNodes, inNodes);
@@ -316,10 +379,14 @@ const Arboles = () => {
         setInOrderInput("");
         setPostOrderInput("");
       } else {
-        alert("No se pudo reconstruir el árbol. Verifica que el orden de los elementos sea consistente.");
+        alert(
+          "No se pudo reconstruir el árbol. Verifica que el orden de los elementos sea consistente.",
+        );
       }
     } catch (e) {
-      alert("Error crítico al procesar los datos. Verifica el formato de entrada.");
+      alert(
+        "Error crítico al procesar los datos. Verifica el formato de entrada.",
+      );
     }
   };
 
@@ -339,7 +406,7 @@ const Arboles = () => {
       y: number,
       spread: number,
       parentX: number | null,
-      parentY: number | null
+      parentY: number | null,
     ) => {
       positions.push({
         id: node.id,
@@ -357,7 +424,7 @@ const Arboles = () => {
           y + levelHeight,
           spread / 1.6, // Less aggressive reduction
           x,
-          y
+          y,
         );
       }
       if (node.right) {
@@ -367,7 +434,7 @@ const Arboles = () => {
           y + levelHeight,
           spread / 1.6, // Less aggressive reduction
           x,
-          y
+          y,
         );
       }
     };
@@ -376,7 +443,10 @@ const Arboles = () => {
     setNodePositions(positions);
   }, [root, canvasSize.width, treeOriginX]);
 
-  const getPreOrder = (node: BSTNode | null, result: number[] = []): number[] => {
+  const getPreOrder = (
+    node: BSTNode | null,
+    result: number[] = [],
+  ): number[] => {
     if (!node) return result;
     result.push(node.value);
     getPreOrder(node.left, result);
@@ -384,7 +454,10 @@ const Arboles = () => {
     return result;
   };
 
-  const getInOrder = (node: BSTNode | null, result: number[] = []): number[] => {
+  const getInOrder = (
+    node: BSTNode | null,
+    result: number[] = [],
+  ): number[] => {
     if (!node) return result;
     getInOrder(node.left, result);
     result.push(node.value);
@@ -392,7 +465,10 @@ const Arboles = () => {
     return result;
   };
 
-  const getPostOrder = (node: BSTNode | null, result: number[] = []): number[] => {
+  const getPostOrder = (
+    node: BSTNode | null,
+    result: number[] = [],
+  ): number[] => {
     if (!node) return result;
     getPostOrder(node.left, result);
     getPostOrder(node.right, result);
@@ -471,17 +547,19 @@ const Arboles = () => {
                     <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
                     Editando: {editingNode.value}
                   </h2>
-                  <button 
+                  <button
                     onClick={() => setEditingNode(null)}
                     className="text-slate-400 hover:text-white transition-colors"
                   >
                     <Plus size={16} className="rotate-45" />
                   </button>
                 </div>
-                
+
                 <div className="space-y-4">
                   <div className="space-y-2">
-                    <label className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Nuevo Valor</label>
+                    <label className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">
+                      Nuevo Valor
+                    </label>
                     <input
                       type="number"
                       value={editValueInput}
@@ -490,7 +568,7 @@ const Arboles = () => {
                       autoFocus
                     />
                   </div>
-                  
+
                   <div className="grid grid-cols-2 gap-2">
                     <button
                       onClick={handleConfirmEdit}
@@ -507,14 +585,14 @@ const Arboles = () => {
                   </div>
 
                   <div className="h-px bg-white/5 my-2" />
-                  
+
                   <button
                     onClick={handleSetAsRoot}
                     className="w-full bg-blue-600 hover:bg-blue-700 py-2 rounded-xl transition-all font-bold text-[10px] text-white flex items-center justify-center gap-2"
                   >
                     <TreePine size={12} /> CONVERTIR EN RAÍZ
                   </button>
-                  
+
                   <button
                     onClick={handleDeleteNode}
                     className="w-full bg-red-600/20 hover:bg-red-600 text-red-400 hover:text-white py-2 rounded-xl transition-all font-bold text-[10px] border border-red-500/30"
@@ -527,10 +605,14 @@ const Arboles = () => {
 
             {mode === "visualize" ? (
               <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-4 shadow-2xl">
-                <h2 className="text-lg font-bold text-white mb-4">Control de Nodos</h2>
+                <h2 className="text-lg font-bold text-white mb-4">
+                  Control de Nodos
+                </h2>
                 <div className="space-y-4">
                   <div className="space-y-2">
-                    <label className="text-xs text-slate-400 uppercase font-semibold">Nuevo Nodo</label>
+                    <label className="text-xs text-slate-400 uppercase font-semibold">
+                      Nuevo Nodo
+                    </label>
                     <div className="flex gap-2">
                       <input
                         type="number"
@@ -547,7 +629,7 @@ const Arboles = () => {
                       </button>
                     </div>
                   </div>
-                  
+
                   <button
                     onClick={handleAddRandomNode}
                     className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg flex items-center justify-center gap-2 transition-colors font-semibold text-sm"
@@ -558,50 +640,70 @@ const Arboles = () => {
               </div>
             ) : (
               <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-4 shadow-2xl">
-                <h2 className="text-lg font-bold text-white mb-4">Reconstrucción</h2>
+                <h2 className="text-lg font-bold text-white mb-2">
+                  Reconstrucción
+                </h2>
+                <p className="text-[10px] text-slate-400 mb-4 italic leading-tight">
+                  Combina el In-order con otro recorrido para recuperar la
+                  estructura original.
+                </p>
                 <div className="space-y-4">
                   <div className="space-y-2">
-                    <label className="text-xs text-slate-400 uppercase font-semibold">Tipo de Datos</label>
-                    <select 
+                    <label className="text-xs text-slate-400 uppercase font-semibold">
+                      1. Método
+                    </label>
+                    <select
                       value={reconstructType}
-                      onChange={(e) => setReconstructType(e.target.value as any)}
+                      onChange={(e) =>
+                        setReconstructType(e.target.value as any)
+                      }
                       className="w-full bg-slate-800 border border-slate-700 text-white px-3 py-2 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500"
                     >
-                      <option value="pre-in">Pre-order + In-order</option>
-                      <option value="post-in">Post-order + In-order</option>
+                      <option value="pre-in">
+                        Pre-order (Raíz primero) + In-order
+                      </option>
+                      <option value="post-in">
+                        Post-order (Raíz al final) + In-order
+                      </option>
                     </select>
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-xs text-slate-400 uppercase font-semibold">In-order</label>
+                    <label className="text-xs text-slate-400 uppercase font-semibold">
+                      2. In-order (Izq-Raíz-Der)
+                    </label>
                     <input
                       type="text"
                       value={inOrderInput}
                       onChange={(e) => setInOrderInput(e.target.value)}
-                      placeholder="1, 2, 3..."
+                      placeholder="Ej: 4, 2, 5, 1, 3"
                       className="bg-slate-800 border border-slate-700 text-white px-3 py-2 rounded-lg w-full text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500"
                     />
                   </div>
 
                   {reconstructType === "pre-in" ? (
                     <div className="space-y-2">
-                      <label className="text-xs text-slate-400 uppercase font-semibold">Pre-order</label>
+                      <label className="text-xs text-slate-400 uppercase font-semibold">
+                        3. Pre-order (Raíz-Izq-Der)
+                      </label>
                       <input
                         type="text"
                         value={preOrderInput}
                         onChange={(e) => setPreOrderInput(e.target.value)}
-                        placeholder="1, 2, 3..."
+                        placeholder="Ej: 1, 2, 4, 5, 3"
                         className="bg-slate-800 border border-slate-700 text-white px-3 py-2 rounded-lg w-full text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500"
                       />
                     </div>
                   ) : (
                     <div className="space-y-2">
-                      <label className="text-xs text-slate-400 uppercase font-semibold">Post-order</label>
+                      <label className="text-xs text-slate-400 uppercase font-semibold">
+                        3. Post-order (Izq-Der-Raíz)
+                      </label>
                       <input
                         type="text"
                         value={postOrderInput}
                         onChange={(e) => setPostOrderInput(e.target.value)}
-                        placeholder="1, 2, 3..."
+                        placeholder="Ej: 4, 5, 2, 3, 1"
                         className="bg-slate-800 border border-slate-700 text-white px-3 py-2 rounded-lg w-full text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500"
                       />
                     </div>
@@ -618,28 +720,38 @@ const Arboles = () => {
             )}
 
             <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-4 shadow-2xl">
-              <h2 className="text-lg font-bold text-white mb-4">Estadísticas</h2>
+              <h2 className="text-lg font-bold text-white mb-4">
+                Estadísticas
+              </h2>
               <div className="space-y-4 text-slate-300 text-sm">
                 <div className="flex justify-between">
                   <span>Total Nodos</span>
-                  <span className="font-semibold text-white">{nodePositions.length}</span>
+                  <span className="font-semibold text-white">
+                    {nodePositions.length}
+                  </span>
                 </div>
 
                 <div className="space-y-2 pt-2 border-t border-white/5">
                   <div className="space-y-1">
-                    <span className="text-[10px] text-emerald-400 uppercase font-bold">Pre-orden</span>
+                    <span className="text-[10px] text-emerald-400 uppercase font-bold">
+                      Pre-orden
+                    </span>
                     <p className="text-white font-mono break-all bg-black/30 p-2 rounded-lg text-xs">
                       {getPreOrder(root).join(", ") || "-"}
                     </p>
                   </div>
                   <div className="space-y-1">
-                    <span className="text-[10px] text-blue-400 uppercase font-bold">In-orden</span>
+                    <span className="text-[10px] text-blue-400 uppercase font-bold">
+                      In-orden
+                    </span>
                     <p className="text-white font-mono break-all bg-black/30 p-2 rounded-lg text-xs">
                       {getInOrder(root).join(", ") || "-"}
                     </p>
                   </div>
                   <div className="space-y-1">
-                    <span className="text-[10px] text-purple-400 uppercase font-bold">Post-orden</span>
+                    <span className="text-[10px] text-purple-400 uppercase font-bold">
+                      Post-orden
+                    </span>
                     <p className="text-white font-mono break-all bg-black/30 p-2 rounded-lg text-xs">
                       {getPostOrder(root).join(", ") || "-"}
                     </p>
@@ -648,19 +760,91 @@ const Arboles = () => {
               </div>
             </div>
 
-            <div className="text-xs text-slate-400 leading-relaxed p-2">
-              <b>Instrucciones:</b><br/>
-              {mode === "visualize" ? (
-                <>
-                  • Ingresa un valor y presiona "+" para insertarlo en el BST.<br/>
-                  • El árbol se balanceará visualmente para mantener la estructura.
-                </>
-              ) : (
-                <>
-                  • Ingresa dos tipos de recorridos y presiona "Generar" para reconstruir el árbol.<br/>
-                  • Usa números separados por comas.
-                </>
-              )}
+            {/* GUÍA DE USO REUBICADA Y MEJORADA */}
+            <div className="bg-slate-900/40 backdrop-blur-md border border-white/10 rounded-3xl p-5 shadow-2xl mt-4">
+              <h2 className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
+                <Settings size={12} className="text-emerald-500" /> Guía de Uso
+              </h2>
+
+              <div className="space-y-4">
+                {mode === "visualize" ? (
+                  <section className="animate-in fade-in slide-in-from-bottom-2 duration-500">
+                    <h3 className="text-xs font-bold text-emerald-400 mb-2 flex items-center gap-2">
+                      <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)]" />
+                      Modo Visualizar
+                    </h3>
+                    <ul className="text-[11px] text-slate-400 space-y-2">
+                      <li className="flex gap-2">
+                        <span className="text-emerald-500 font-bold">•</span>
+                        <span>
+                          Inserta el{" "}
+                          <span className="text-white">valor deseado</span> o
+                          usa <span className="text-white">Nodo Aleatorio</span>
+                          .
+                        </span>
+                      </li>
+                      <li className="flex gap-2">
+                        <span className="text-emerald-500 font-bold">•</span>
+                        <span>
+                          Haz <span className="text-white">Click</span> en
+                          cualquier nodo para abrir el panel de edición.
+                        </span>
+                      </li>
+                      <li className="flex gap-2">
+                        <span className="text-emerald-500 font-bold">•</span>
+                        <span>
+                          Usa la <span className="text-white">Pizarra</span>:
+                          Arrastra para moverte y usa el Zoom para navegar.
+                        </span>
+                      </li>
+                    </ul>
+                  </section>
+                ) : (
+                  <section className="animate-in fade-in slide-in-from-bottom-2 duration-500">
+                    <h3 className="text-xs font-bold text-blue-400 mb-2 flex items-center gap-2">
+                      <div className="w-1.5 h-1.5 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.6)]" />
+                      Modo Reconstruir
+                    </h3>
+                    <ul className="text-[11px] text-slate-400 space-y-2">
+                      <li className="flex gap-2">
+                        <span className="text-blue-400 font-bold">•</span>
+                        <span>
+                          Ingresa los recorridos separados por{" "}
+                          <span className="text-white">comas o espacios</span>.
+                        </span>
+                      </li>
+                      <li className="flex gap-2">
+                        <span className="text-blue-400 font-bold">•</span>
+                        <span>
+                          Es vital que ambas listas tengan los{" "}
+                          <span className="text-white">mismos elementos</span>{" "}
+                          sin duplicados.
+                        </span>
+                      </li>
+                      <li className="flex gap-2">
+                        <span className="text-blue-400 font-bold">•</span>
+                        <span>
+                          El <span className="text-white">In-order</span> define
+                          la posición relativa (izquierda/derecha).
+                        </span>
+                      </li>
+                    </ul>
+                  </section>
+                )}
+
+                <div className="pt-4 border-t border-white/5">
+                  <div className="bg-emerald-500/5 rounded-xl p-3 border border-emerald-500/10">
+                    <p className="text-[10px] text-slate-500 leading-tight">
+                      <span className="text-emerald-400 font-bold uppercase mr-1">
+                        Pro Tip:
+                      </span>
+                      Exporta tu trabajo en{" "}
+                      <span className="text-slate-300">JSON</span> para
+                      guardarlo o compartirlo con otros.
+                    </p>
+                  </div>
+                </div>
+              </div>
             </div>
           </aside>
 
@@ -672,44 +856,46 @@ const Arboles = () => {
               onMouseMove={handleMouseMove}
               onMouseUp={handleMouseUp}
               onMouseLeave={handleMouseUp}
-              className={`relative rounded-3xl border border-white/10 shadow-2xl overflow-hidden cursor-grab active:cursor-grabbing transition-colors ${isPanning ? 'bg-slate-900/50' : ''}`}
+              className={`relative rounded-3xl border border-white/10 shadow-2xl overflow-hidden cursor-grab active:cursor-grabbing transition-colors ${isPanning ? "bg-slate-900/50" : ""}`}
               style={{
                 height: "600px",
-                background: "radial-gradient(circle at center, #0f172a 0%, #020617 100%)",
+                background:
+                  "radial-gradient(circle at center, #0f172a 0%, #020617 100%)",
               }}
             >
               {/* DRAGGABLE WRAPPER */}
-              <div 
-                style={{ 
+              <div
+                style={{
                   transform: `translate(${panOffset.x}px, ${panOffset.y}px) scale(${zoom})`,
-                  transformOrigin: 'center center',
-                  width: '100%',
-                  height: '100%',
-                  position: 'absolute',
+                  transformOrigin: "center center",
+                  width: "100%",
+                  height: "100%",
+                  position: "absolute",
                   top: 0,
                   left: 0,
-                  pointerEvents: 'none',
-                  transition: isPanning ? 'none' : 'transform 0.2s ease-out'
+                  pointerEvents: "none",
+                  transition: isPanning ? "none" : "transform 0.2s ease-out",
                 }}
               >
                 {/* GRID - Extended to avoid edges during pan */}
                 <div
                   className="absolute opacity-10"
                   style={{
-                    width: '10000px',
-                    height: '10000px',
-                    top: '-5000px',
-                    left: '-5000px',
-                    backgroundImage: "linear-gradient(to right, white 1px, transparent 1px), linear-gradient(to bottom, white 1px, transparent 1px)",
+                    width: "10000px",
+                    height: "10000px",
+                    top: "-5000px",
+                    left: "-5000px",
+                    backgroundImage:
+                      "linear-gradient(to right, white 1px, transparent 1px), linear-gradient(to bottom, white 1px, transparent 1px)",
                     backgroundSize: "40px 40px",
-                    pointerEvents: 'none'
+                    pointerEvents: "none",
                   }}
                 />
 
                 {/* SVG for connections - overflow visible fixes clipping */}
-                <svg 
+                <svg
                   className="absolute inset-0 pointer-events-none"
-                  style={{ overflow: 'visible', width: '1px', height: '1px' }}
+                  style={{ overflow: "visible", width: "1px", height: "1px" }}
                 >
                   <defs>
                     <filter id="glow">
@@ -719,33 +905,41 @@ const Arboles = () => {
                         <feMergeNode in="SourceGraphic" />
                       </feMerge>
                     </filter>
-                    <linearGradient id="line-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <linearGradient
+                      id="line-gradient"
+                      x1="0%"
+                      y1="0%"
+                      x2="100%"
+                      y2="100%"
+                    >
                       <stop offset="0%" stopColor="#10b981" />
                       <stop offset="100%" stopColor="#3b82f6" />
                     </linearGradient>
                   </defs>
-                  {nodePositions.map((pos, idx) => (
-                    pos.parentX !== null && pos.parentY !== null && (
-                      <line
-                        key={`line-${idx}`}
-                        x1={pos.parentX}
-                        y1={pos.parentY}
-                        x2={pos.x}
-                        y2={pos.y}
-                        stroke="url(#line-gradient)"
-                        strokeWidth="2.5"
-                        strokeLinecap="round"
-                        style={{ filter: 'url(#glow)', opacity: 0.6 }}
-                      />
-                    )
-                  ))}
+                  {nodePositions.map(
+                    (pos, idx) =>
+                      pos.parentX !== null &&
+                      pos.parentY !== null && (
+                        <line
+                          key={`line-${idx}`}
+                          x1={pos.parentX}
+                          y1={pos.parentY}
+                          x2={pos.x}
+                          y2={pos.y}
+                          stroke="url(#line-gradient)"
+                          strokeWidth="2.5"
+                          strokeLinecap="round"
+                          style={{ filter: "url(#glow)", opacity: 0.6 }}
+                        />
+                      ),
+                  )}
                 </svg>
 
                 {/* Nodes */}
                 {nodePositions.map((pos, idx) => (
                   <div
                     key={`node-${idx}`}
-                    onMouseDown={(e) => e.stopPropagation()} 
+                    onMouseDown={(e) => e.stopPropagation()}
                     onClick={(e) => {
                       e.stopPropagation();
                       setEditingNode(pos);
@@ -757,16 +951,18 @@ const Arboles = () => {
                       setEditingNode(pos);
                       setEditValueInput(pos.value.toString());
                     }}
-                    className={`absolute animate-in zoom-in duration-500 flex items-center justify-center w-12 h-12 rounded-full text-white text-sm font-bold shadow-2xl transition-all hover:scale-110 cursor-pointer pointer-events-auto border-2 ${editingNode?.id === pos.id ? 'border-emerald-400 scale-110 shadow-emerald-500/50' : 'border-white/10'}`}
+                    className={`absolute animate-in zoom-in duration-500 flex items-center justify-center w-12 h-12 rounded-full text-white text-sm font-bold shadow-2xl transition-all hover:scale-110 cursor-pointer pointer-events-auto border-2 ${editingNode?.id === pos.id ? "border-emerald-400 scale-110 shadow-emerald-500/50" : "border-white/10"}`}
                     style={{
                       left: pos.x - 24,
                       top: pos.y - 24,
-                      background: editingNode?.id === pos.id 
-                        ? "linear-gradient(135deg, #059669, #2563eb)" 
-                        : "linear-gradient(135deg, #10b981, #3b82f6)",
-                      boxShadow: editingNode?.id === pos.id 
-                        ? "0 0 30px rgba(16, 185, 129, 0.6)" 
-                        : "0 0 20px rgba(16, 185, 129, 0.4)",
+                      background:
+                        editingNode?.id === pos.id
+                          ? "linear-gradient(135deg, #059669, #2563eb)"
+                          : "linear-gradient(135deg, #10b981, #3b82f6)",
+                      boxShadow:
+                        editingNode?.id === pos.id
+                          ? "0 0 30px rgba(16, 185, 129, 0.6)"
+                          : "0 0 20px rgba(16, 185, 129, 0.4)",
                       zIndex: editingNode?.id === pos.id ? 20 : 10,
                     }}
                   >
@@ -774,16 +970,21 @@ const Arboles = () => {
                   </div>
                 ))}
               </div>
-              
+
               {nodePositions.length === 0 && (
                 <div className="flex flex-col items-center justify-center h-full text-slate-500 gap-4 pointer-events-none">
                   <TreePine size={64} className="opacity-20" />
-                  <p className="italic text-lg">El lienzo está vacío. ¡Añade tu primer nodo!</p>
+                  <p className="italic text-lg">
+                    El lienzo está vacío. ¡Añade tu primer nodo!
+                  </p>
                 </div>
               )}
 
               {/* ZOOM CONTROLS */}
-              <div className="absolute bottom-6 right-6 flex flex-col gap-2 z-30">
+              <div
+                className="absolute bottom-6 right-6 flex flex-col gap-2 z-30"
+                onMouseDown={(e) => e.stopPropagation()}
+              >
                 <div className="bg-slate-900/80 backdrop-blur-md border border-white/10 rounded-2xl p-1.5 shadow-2xl flex flex-col gap-1">
                   <button
                     onClick={handleZoomIn}
@@ -812,7 +1013,6 @@ const Arboles = () => {
                 </div>
               </div>
             </div>
-
           </div>
         </div>
       </div>
