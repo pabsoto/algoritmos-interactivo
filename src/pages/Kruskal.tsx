@@ -1,5 +1,14 @@
 import Navbar from "@/components/Navbar";
 import React, { useState, useRef, ChangeEvent } from "react";
+import {
+  HelpCircle,
+  X,
+  MousePointer2,
+  GitBranch,
+  Edit3,
+  Trash2,
+  Info,
+} from "lucide-react";
 
 // --- TIPOS ---
 interface NodeData {
@@ -18,14 +27,14 @@ interface EdgeData {
   state?: "default" | "evaluating" | "included" | "rejected";
 }
 
-type ToolMode = "AgregarNodo" | "AgregarArista" | "Editar" | "Eliminar";
+type ToolMode = "NODO" | "ARISTA" | "Editar" | "Eliminar";
 type OptimizationMode = "min" | "max";
 
 export default function KruskalSection() {
   // --- ESTADOS ---
   const [nodes, setNodes] = useState<NodeData[]>([]);
   const [edges, setEdges] = useState<EdgeData[]>([]);
-  const [mode, setMode] = useState<ToolMode>("AgregarNodo");
+  const [mode, setMode] = useState<ToolMode>("NODO");
   const [optMode, setOptMode] = useState<OptimizationMode>("min");
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
@@ -43,12 +52,13 @@ export default function KruskalSection() {
   const [tempElement, setTempElement] = useState<NodeData | EdgeData | null>(
     null,
   );
+  const [showHelp, setShowHelp] = useState(false);
   // --- LÓGICA DE INTERACCIÓN ---
 
   const handleSvgClick = (e: React.MouseEvent) => {
     console.log("Clic en SVG detectado, modo actual:", mode);
 
-    if (mode !== "AgregarNodo" || isAnimating || !svgRef.current) return;
+    if (mode !== "NODO" || isAnimating || !svgRef.current) return;
 
     const rect = svgRef.current.getBoundingClientRect();
     const x = e.clientX - rect.left;
@@ -86,7 +96,7 @@ export default function KruskalSection() {
     } else if (mode === "Editar") {
       setEditaringElement(node);
       setIsPanelOpen(true);
-    } else if (mode === "AgregarArista") {
+    } else if (mode === "ARISTA") {
       if (!selectedNodeId) {
         setSelectedNodeId(node.id);
       } else if (selectedNodeId !== node.id) {
@@ -139,11 +149,7 @@ export default function KruskalSection() {
     e.stopPropagation();
     if (isAnimating) return;
 
-    if (
-      mode === "Editar" ||
-      mode === "AgregarNodo" ||
-      mode === "AgregarArista"
-    ) {
+    if (mode === "Editar" || mode === "NODO" || mode === "ARISTA") {
       setDraggingNodeId(node.id);
       hasMoved.current = false;
     }
@@ -570,21 +576,19 @@ export default function KruskalSection() {
           <div className="card-premium">
             <span className="card-tag">Herramientas</span>
             <div className="grid grid-cols-2 gap-2">
-              {["AgregarNodo", "AgregarArista", "Editar", "Eliminar"].map(
-                (t) => (
-                  <button
-                    key={t}
-                    onClick={() => setMode(t as ToolMode)}
-                    className={`p-2 rounded-lg text-xs font-bold border transition-all ${
-                      mode === t
-                        ? "bg-cyan-500/10 border-cyan-500 text-cyan-400"
-                        : "bg-slate-800 border-transparent text-slate-400 hover:text-white"
-                    }`}
-                  >
-                    {t.toUpperCase()}
-                  </button>
-                ),
-              )}
+              {["NODO", "ARISTA", "Editar", "Eliminar"].map((t) => (
+                <button
+                  key={t}
+                  onClick={() => setMode(t as ToolMode)}
+                  className={`p-2 rounded-lg text-xs font-bold border transition-all ${
+                    mode === t
+                      ? "bg-cyan-500/10 border-cyan-500 text-cyan-400"
+                      : "bg-slate-800 border-transparent text-slate-400 hover:text-white"
+                  }`}
+                >
+                  {t.toUpperCase()}
+                </button>
+              ))}
             </div>
           </div>
 
@@ -654,8 +658,8 @@ export default function KruskalSection() {
             </div>
           </div>
           <div className="px-4 text-[11px] text-slate-500 leading-relaxed italic">
-            Tip: Usa 'AgregarArista' para conectar nodos. El algoritmo
-            visualizará el proceso paso a paso con efectos neón.
+            Tip: Usa 'ARISTA' para conectar nodos. El algoritmo visualizará el
+            proceso paso a paso con efectos neón.
           </div>
         </aside>
 
@@ -1124,7 +1128,7 @@ export default function KruskalSection() {
             </div>
           )}
 
-          {mode === "AgregarArista" && selectedNodeId && (
+          {mode === "ARISTA" && selectedNodeId && (
             <div className="absolute bottom-6 right-8 bg-cyan-500 text-white px-4 py-2 rounded-full text-xs font-black tracking-widest animate-pulse shadow-2xl">
               SISTEMA DE CONEXIÓN ACTIVO
             </div>
@@ -1221,6 +1225,162 @@ export default function KruskalSection() {
               >
                 CERRAR TERMINAL
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* ── BOTÓN FLOTANTE DE AYUDA ─────────────────────────────────────────── */}
+      <div className="fixed bottom-8 right-8 z-40">
+        <button
+          onClick={() => setShowHelp(true)}
+          className="w-14 h-14 rounded-full border-2 border-cyan-500/50 text-cyan-400 flex items-center justify-center bg-slate-900/80 backdrop-blur-md transition-all hover:scale-110 hover:bg-cyan-500 hover:text-white shadow-[0_0_20px_rgba(6,182,212,0.3)] group"
+          title="Ver guía de uso"
+        >
+          <HelpCircle
+            size={28}
+            strokeWidth={2}
+            className="group-hover:rotate-12 transition-transform"
+          />
+        </button>
+      </div>
+
+      {/* ── MODAL DE GUÍA EXTENSA ────────────────────────────────────────────── */}
+      {showHelp && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-in fade-in duration-300">
+          <div
+            className="bg-slate-900 border border-slate-700 p-8 rounded-3xl w-full max-w-2xl shadow-2xl relative max-h-[90vh] overflow-y-auto custom-scrollbar"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={() => setShowHelp(false)}
+              className="absolute top-6 right-6 text-slate-400 hover:text-white transition-colors p-2 hover:bg-slate-800 rounded-full"
+            >
+              <X size={24} />
+            </button>
+
+            <div className="flex items-center gap-3 mb-8">
+              <div className="bg-cyan-500/20 p-2 rounded-xl border border-cyan-500/30">
+                <Info className="text-cyan-400" size={24} />
+              </div>
+              <h2 className="text-2xl font-bold text-white tracking-tight">
+                Guía de Uso: Algoritmo de Kruskal
+              </h2>
+            </div>
+
+            <div className="space-y-8">
+              <section>
+                <h3 className="text-cyan-400 text-sm font-bold uppercase tracking-wider mb-3 flex items-center gap-2">
+                  <span className="w-1 h-4 bg-cyan-400 rounded-full"></span>
+                  Concepto Fundamental
+                </h3>
+                <p className="text-slate-300 text-sm leading-relaxed">
+                  El algoritmo de Kruskal es un proceso "voraz" que busca
+                  encontrar el <b>Árbol de Expansión Mínimo (MST)</b> de un
+                  grafo. Esto significa conectar todos los nodos utilizando el
+                  menor peso total posible, asegurando que no se formen ciclos
+                  (bucles).
+                </p>
+              </section>
+
+              <section>
+                <h3 className="text-cyan-400 text-sm font-bold uppercase tracking-wider mb-4 flex items-center gap-2">
+                  <span className="w-1 h-4 bg-cyan-400 rounded-full"></span>
+                  Herramientas de Construcción
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="bg-slate-800/50 p-4 rounded-2xl border border-slate-700/50">
+                    <div className="flex items-center gap-2 mb-2">
+                      <MousePointer2 size={16} className="text-cyan-400" />
+                      <span className="text-white font-bold text-sm">
+                        Modo NODO
+                      </span>
+                    </div>
+                    <p className="text-slate-400 text-xs leading-relaxed">
+                      Haz clic en cualquier espacio vacío del lienzo para crear
+                      un nuevo nodo. Se asignará una letra automáticamente.
+                    </p>
+                  </div>
+                  <div className="bg-slate-800/50 p-4 rounded-2xl border border-slate-700/50">
+                    <div className="flex items-center gap-2 mb-2">
+                      <GitBranch size={16} className="text-cyan-400" />
+                      <span className="text-white font-bold text-sm">
+                        Modo ARISTA
+                      </span>
+                    </div>
+                    <p className="text-slate-400 text-xs leading-relaxed">
+                      Selecciona un nodo y luego otro para conectarlos. Se te
+                      pedirá ingresar el peso de la conexión.
+                    </p>
+                  </div>
+                  <div className="bg-slate-800/50 p-4 rounded-2xl border border-slate-700/50">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Edit3 size={16} className="text-cyan-400" />
+                      <span className="text-white font-bold text-sm">
+                        Modo EDITAR
+                      </span>
+                    </div>
+                    <p className="text-slate-400 text-xs leading-relaxed">
+                      Arrastra nodos para reposicionarlos o haz clic en aristas
+                      y nodos para modificar sus valores.
+                    </p>
+                  </div>
+                  <div className="bg-slate-800/50 p-4 rounded-2xl border border-slate-700/50">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Trash2 size={16} className="text-red-400" />
+                      <span className="text-white font-bold text-sm">
+                        Modo ELIMINAR
+                      </span>
+                    </div>
+                    <p className="text-slate-400 text-xs leading-relaxed">
+                      Haz clic sobre cualquier elemento (nodo o arista) para
+                      eliminarlo permanentemente del grafo.
+                    </p>
+                  </div>
+                </div>
+              </section>
+
+              <section>
+                <h3 className="text-cyan-400 text-sm font-bold uppercase tracking-wider mb-4 flex items-center gap-2">
+                  <span className="w-1 h-4 bg-cyan-400 rounded-full"></span>
+                  Estados de la Animación
+                </h3>
+                <div className="space-y-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-1 bg-yellow-500 rounded-full shadow-[0_0_10px_rgba(234,179,8,0.5)]"></div>
+                    <span className="text-xs text-slate-300">
+                      <b>Amarillo:</b> La arista está siendo evaluada por el
+                      algoritmo.
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-1.5 bg-emerald-500 rounded-full shadow-[0_0_10px_rgba(16,185,129,0.5)]"></div>
+                    <span className="text-xs text-slate-300">
+                      <b>Verde:</b> Arista incluida exitosamente en el árbol (no
+                      forma ciclo).
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-0.5 bg-red-500/30 border-t border-dashed border-red-500"></div>
+                    <span className="text-xs text-slate-300">
+                      <b>Rojo Tenue:</b> Arista rechazada porque su inclusión
+                      formaría un ciclo.
+                    </span>
+                  </div>
+                </div>
+              </section>
+
+              <div className="pt-4 border-t border-slate-800 flex justify-between items-center">
+                <p className="text-[10px] text-slate-500 italic">
+                  Puedes importar grafos guardados desde archivos JSON en el
+                  botón superior.
+                </p>
+                <button
+                  onClick={() => setShowHelp(false)}
+                  className="bg-cyan-500 hover:bg-cyan-400 text-slate-900 px-6 py-2 rounded-xl text-xs font-bold transition-all"
+                >
+                  Entendido
+                </button>
+              </div>
             </div>
           </div>
         </div>
