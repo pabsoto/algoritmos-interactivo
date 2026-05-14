@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, ChangeEvent } from "react";
 import Layout from "@/components/Layout";
-import { Play, RotateCcw, Shuffle, HelpCircle, X, Timer, Download, Upload } from "lucide-react";
+import { Play, RotateCcw, Shuffle, HelpCircle, X, Timer, Download, Upload, Trash2 } from "lucide-react";
 
 type SortAlg = "selection" | "insertion" | "merge" | "shell";
 
@@ -178,27 +178,6 @@ const Ordenamiento = () => {
 		);
 	};
 
-	const applyManual = () => {
-		if (isSorting) return;
-		const parts = manualInput.split(/[\s,;]+/).filter(Boolean);
-		const nums = parts.map((p) => parseInt(p, 10));
-		if (!nums.length || nums.some(isNaN)) {
-			setInputError("Ingresa solo números separados por comas o espacios.");
-			return;
-		}
-		if (nums.length > 60) {
-			setInputError("Máximo 60 elementos.");
-			return;
-		}
-		const clamped = nums.map((n) => Math.min(999, Math.max(1, Math.abs(n))));
-		setArray(clamped);
-		setDisplayArray(clamped);
-		setInputError("");
-		resetHighlights();
-		clearTimers();
-		setStatusMsg(`Arreglo de ${clamped.length} elementos cargado.`);
-	};
-
 	const handleExport = () => {
 		const fileName = prompt(
 			"Ingresa el nombre para tu archivo:",
@@ -266,6 +245,42 @@ const Ordenamiento = () => {
 		setVizTime(null);
 		setStatusMsg("Reiniciado. Presiona Iniciar para volver a ordenar.");
 	};
+
+	const clearAll = () => {
+		cancelRef.current.cancelled = true;
+		if (vizIntervalRef.current) { clearInterval(vizIntervalRef.current); vizIntervalRef.current = null; }
+		vizStartRef.current = null;
+		setIsSorting(false);
+		setArray([]);
+		setDisplayArray([]);
+		setManualInput("");
+		setInputError("");
+		resetHighlights();
+		setAlgoTime(null);
+		setVizTime(null);
+		setStatusMsg("Genera un arreglo y presiona Iniciar.");
+	};
+
+	const manualDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+	useEffect(() => {
+		if (inputMode !== "manual" || isSorting) return;
+		if (manualDebounceRef.current) clearTimeout(manualDebounceRef.current);
+		manualDebounceRef.current = setTimeout(() => {
+			const parts = manualInput.split(/[\s,;]+/).filter(Boolean);
+			if (!parts.length) { setInputError(""); return; }
+			const nums = parts.map((p) => parseInt(p, 10));
+			if (nums.some(isNaN)) { setInputError("Solo números separados por comas o espacios."); return; }
+			if (nums.length > 60) { setInputError("Máximo 60 elementos."); return; }
+			const clamped = nums.map((n) => Math.min(999, Math.max(1, Math.abs(n))));
+			setArray(clamped);
+			setDisplayArray(clamped);
+			setInputError("");
+			resetHighlights();
+			clearTimers();
+			setStatusMsg(`Arreglo de ${clamped.length} elementos cargado.`);
+		}, 400);
+		return () => { if (manualDebounceRef.current) clearTimeout(manualDebounceRef.current); };
+	}, [manualInput, inputMode, isSorting]); // eslint-disable-line react-hooks/exhaustive-deps
 
 	useEffect(() => {
 		generateRandom();
@@ -600,6 +615,15 @@ const Ordenamiento = () => {
 								Reiniciar
 							</button>
 							<button
+								onClick={clearAll}
+								disabled={isSorting}
+								className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-red-400 rounded-md transition-all hover:bg-red-900/30 hover:text-red-300 disabled:opacity-40 disabled:cursor-not-allowed"
+								title="Limpiar arreglo"
+							>
+								<Trash2 size={15} />
+								Limpiar
+							</button>
+							<button
 								onClick={startSorting}
 								disabled={isSorting || !array.length}
 								className="flex items-center gap-2 px-5 py-2 text-sm font-semibold text-white rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
@@ -807,18 +831,10 @@ const Ordenamiento = () => {
 										{inputError && (
 											<p className="text-xs text-red-400 mt-1">{inputError}</p>
 										)}
+										{!inputError && array.length > 0 && (
+											<p className="text-xs text-slate-500 mt-1">{array.length} elementos cargados</p>
+										)}
 									</div>
-									<button
-										onClick={applyManual}
-										disabled={isSorting}
-										className="w-full flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium text-white transition-all hover:opacity-90 disabled:opacity-40"
-										style={{
-											background: "hsl(200 75% 36%/0.75)",
-											border: "1px solid hsl(200 75% 50%/0.4)",
-										}}
-									>
-										Aplicar Arreglo
-									</button>
 								</div>
 							)}
 						</div>
