@@ -11,6 +11,12 @@ import {
   ZoomOut,
   Maximize,
   Settings,
+  HelpCircle,
+  X,
+  Info,
+  MousePointer2,
+  Edit3,
+  GitBranch,
 } from "lucide-react";
 
 interface BSTNode {
@@ -33,6 +39,7 @@ const Arboles = () => {
   const [mode, setMode] = useState<"visualize" | "reconstruct">("visualize");
   const [root, setRoot] = useState<BSTNode | null>(null);
   const [inputValue, setInputValue] = useState<string>("");
+  const [showHelp, setShowHelp] = useState(false);
 
   // Edit state
   const [editingNode, setEditingNode] = useState<NodePosition | null>(null);
@@ -1016,6 +1023,164 @@ const Arboles = () => {
           </div>
         </div>
       </div>
+      {/* ── BOTÓN FLOTANTE DE AYUDA ─────────────────────────────────────────── */}
+      <div className="fixed bottom-8 right-8 z-40">
+        <button
+          onClick={() => setShowHelp(true)}
+          className="w-14 h-14 rounded-full border-2 border-emerald-500/50 text-emerald-400 flex items-center justify-center bg-slate-900/80 backdrop-blur-md transition-all hover:scale-110 hover:bg-emerald-500 hover:text-white shadow-[0_0_20px_rgba(16,185,129,0.3)] group"
+          title="Ver guía de uso"
+        >
+          <HelpCircle
+            size={28}
+            strokeWidth={2}
+            className="group-hover:rotate-12 transition-transform"
+          />
+        </button>
+      </div>
+
+      {/* ── MODAL DE GUÍA EXTENSA ────────────────────────────────────────────── */}
+      {showHelp && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-in fade-in duration-300">
+          <div
+            className="bg-slate-900 border border-slate-700 p-8 rounded-3xl w-full max-w-2xl shadow-2xl relative max-h-[90vh] overflow-y-auto custom-scrollbar"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={() => setShowHelp(false)}
+              className="absolute top-6 right-6 text-slate-400 hover:text-white transition-colors p-2 hover:bg-slate-800 rounded-full"
+            >
+              <X size={24} />
+            </button>
+
+            <div className="flex items-center gap-3 mb-8">
+              <div className="bg-emerald-500/20 p-2 rounded-xl border border-emerald-500/30">
+                <Info className="text-emerald-400" size={24} />
+              </div>
+              <h2 className="text-2xl font-bold text-white tracking-tight">
+                Guía de Uso: Árboles Binarios
+              </h2>
+            </div>
+
+            <div className="space-y-8">
+              <section>
+                <h3 className="text-emerald-400 text-sm font-bold uppercase tracking-wider mb-3 flex items-center gap-2">
+                  <span className="w-1 h-4 bg-emerald-400 rounded-full"></span>
+                  Concepto Fundamental: Árbol Binario de Búsqueda
+                </h3>
+                <p className="text-slate-300 text-sm leading-relaxed mb-3">
+                  Un <b>BST (Binary Search Tree)</b> es una estructura jerárquica donde cada elemento (nodo) sigue una regla estricta de ordenamiento que permite búsquedas ultra-rápidas:
+                </p>
+                <ul className="text-xs text-slate-400 space-y-2 bg-slate-800/30 p-4 rounded-2xl border border-white/5">
+                  <li className="flex gap-2">
+                    <span className="text-emerald-500 font-bold">1.</span>
+                    <span>Los valores en el subárbol <b>izquierdo</b> son siempre menores al nodo actual.</span>
+                  </li>
+                  <li className="flex gap-2">
+                    <span className="text-emerald-500 font-bold">2.</span>
+                    <span>Los valores en el subárbol <b>derecho</b> son siempre mayores al nodo actual.</span>
+                  </li>
+                  <li className="flex gap-2">
+                    <span className="text-emerald-500 font-bold">3.</span>
+                    <span>No se permiten valores duplicados (en esta implementación).</span>
+                  </li>
+                </ul>
+              </section>
+
+              <section>
+                <h3 className="text-emerald-400 text-sm font-bold uppercase tracking-wider mb-4 flex items-center gap-2">
+                  <span className="w-1 h-4 bg-emerald-400 rounded-full"></span>
+                  Recorridos del Árbol (Traversals)
+                </h3>
+                <p className="text-slate-300 text-xs leading-relaxed mb-4">
+                  Existen tres formas clásicas de visitar todos los nodos, cada una con un propósito distinto:
+                </p>
+                <div className="grid grid-cols-1 gap-3">
+                  <div className="bg-slate-800/50 p-4 rounded-2xl border border-slate-700/50">
+                    <span className="text-emerald-400 font-bold text-xs uppercase block mb-1">Pre-Order (Raíz → Izq → Der)</span>
+                    <p className="text-slate-400 text-[11px]">Útil para copiar el árbol o evaluar expresiones matemáticas. La raíz siempre aparece de primero.</p>
+                  </div>
+                  <div className="bg-slate-800/50 p-4 rounded-2xl border border-slate-700/50">
+                    <span className="text-blue-400 font-bold text-xs uppercase block mb-1">In-Order (Izq → Raíz → Der)</span>
+                    <p className="text-slate-400 text-[11px]">En un BST, este recorrido devuelve los valores en <b>orden ascendente</b>. Es esencial para la reconstrucción.</p>
+                  </div>
+                  <div className="bg-slate-800/50 p-4 rounded-2xl border border-slate-700/50">
+                    <span className="text-purple-400 font-bold text-xs uppercase block mb-1">Post-Order (Izq → Der → Raíz)</span>
+                    <p className="text-slate-400 text-[11px]">Se usa para eliminar árboles o calcular el tamaño de subárboles. La raíz siempre aparece al final.</p>
+                  </div>
+                </div>
+              </section>
+
+              <section>
+                <h3 className="text-emerald-400 text-sm font-bold uppercase tracking-wider mb-4 flex items-center gap-2">
+                  <span className="w-1 h-4 bg-emerald-400 rounded-full"></span>
+                  Operaciones y Edición
+                </h3>
+                <div className="space-y-4">
+                  <div className="flex gap-4">
+                    <div className="flex-1 bg-slate-800/50 p-4 rounded-2xl border border-slate-700/50">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Plus size={16} className="text-emerald-400" />
+                        <span className="text-white font-bold text-sm">Inserción Dinámica</span>
+                      </div>
+                      <p className="text-slate-400 text-xs leading-relaxed">
+                        Al insertar, el sistema busca automáticamente la posición vacía que mantenga la propiedad del BST.
+                      </p>
+                    </div>
+                    <div className="flex-1 bg-slate-800/50 p-4 rounded-2xl border border-slate-700/50">
+                      <div className="flex items-center gap-2 mb-2">
+                        <GitBranch size={16} className="text-emerald-400" />
+                        <span className="text-white font-bold text-sm">Convertir en Raíz</span>
+                      </div>
+                      <p className="text-slate-400 text-xs leading-relaxed">
+                        Selecciona un nodo y usa esta opción para reorganizar todo el árbol tomando ese valor como el nuevo centro.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              <section>
+                <h3 className="text-emerald-400 text-sm font-bold uppercase tracking-wider mb-4 flex items-center gap-2">
+                  <span className="w-1 h-4 bg-emerald-400 rounded-full"></span>
+                  Magia de la Reconstrucción
+                </h3>
+                <div className="bg-slate-800/80 p-5 rounded-2xl border border-emerald-500/20 shadow-inner">
+                  <p className="text-slate-300 text-xs leading-relaxed mb-3">
+                    ¿Sabías que un solo recorrido no basta para definir la forma de un árbol? Se necesitan dos:
+                  </p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
+                    <div className="text-[11px] p-3 bg-black/20 rounded-xl border border-white/5 text-slate-400">
+                      <b className="text-white">Pre + In:</b> El primer elemento del Pre-order nos dice quién es la raíz, y el In-order nos dice qué elementos van a su izquierda y derecha.
+                    </div>
+                    <div className="text-[11px] p-3 bg-black/20 rounded-xl border border-white/5 text-slate-400">
+                      <b className="text-white">Post + In:</b> El último elemento del Post-order es la raíz. Se aplica la misma lógica recursiva para hallar los hijos.
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              <div className="pt-4 border-t border-slate-800 flex justify-between items-center">
+                <div className="flex items-center gap-4">
+                  <div className="flex -space-x-2">
+                    <div className="w-6 h-6 rounded-full bg-emerald-500 border-2 border-slate-900 flex items-center justify-center text-[10px] font-bold">1</div>
+                    <div className="w-6 h-6 rounded-full bg-blue-500 border-2 border-slate-900 flex items-center justify-center text-[10px] font-bold">2</div>
+                    <div className="w-6 h-6 rounded-full bg-purple-500 border-2 border-slate-900 flex items-center justify-center text-[10px] font-bold">3</div>
+                  </div>
+                  <p className="text-[10px] text-slate-500 italic">
+                    Tip: Haz clic derecho o clic simple en los nodos para ver opciones ocultas.
+                  </p>
+                </div>
+                <button
+                  onClick={() => setShowHelp(false)}
+                  className="bg-emerald-600 hover:bg-emerald-500 text-white px-8 py-2.5 rounded-xl text-xs font-bold transition-all shadow-lg shadow-emerald-900/40"
+                >
+                  ¡Entendido, vamos a practicar!
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </Layout>
   );
 };
