@@ -21,7 +21,7 @@ const algorithmItems = [
   { to: "/northwest", label: "Northwest", icon: Compass },
   { to: "/kruskal", label: "Kruskal", icon: Compass },
   { to: "/dijkstra", label: "Dijkstra", icon: Route},
-  { to: "/mamdani", label: "mamdani", icon: Calculator},
+  // { to: "/mamdani", label: "mamdani", icon: Calculator},
 ];
 
 const Navbar = () => {
