@@ -1108,7 +1108,7 @@ const Dijkstra = () => {
               Guía: Algoritmo de Dijkstra
             </h2>
             <div className="text-slate-300 text-sm space-y-4 max-h-[60vh] overflow-y-auto pr-2">
-              <p>El <strong>Algoritmo de Dijkstra</strong> es un método en teoría de grafos para encontrar el camino más óptimo desde un nodo origen hacia un nodo destino.</p>
+              <p>El <strong> Algoritmo de Dijkstra</strong> es un método en teoría de grafos para encontrar el camino más óptimo desde un nodo origen hacia un nodo destino.</p>
               <ul className="list-disc pl-5 space-y-2">
                 <li><strong>Nodo origen:</strong> el primero que no tenga aristas entrantes.</li>
                 <li><strong>Nodo destino:</strong> el último que no tenga aristas salientes.</li>

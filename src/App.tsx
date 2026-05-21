@@ -14,6 +14,7 @@ import Northwest from "./pages/Northwest";
 import NotFound from "./pages/NotFound";
 import Kruskal from "./pages/Kruskal";
 import Dijkstra from "./pages/Dijkstra";
+import Mamdani from "./pages/Mamdani";
 
 const queryClient = new QueryClient();
 
@@ -34,6 +35,7 @@ const App = () => (
           <Route path="/northwest" element={<Northwest />} /> 
           <Route path="/kruskal" element={<Kruskal />} />
           <Route path="/dijkstra" element={<Dijkstra />} />
+          <Route path="/mamdani" element={<Mamdani />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>

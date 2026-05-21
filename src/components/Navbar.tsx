@@ -1,5 +1,5 @@
 import { Link, useLocation } from "react-router-dom";
-import { BookOpen, GitFork, Home, Users, ChevronDown, BarChart2, TreePine, Compass, Route } from "lucide-react";
+import { BookOpen, GitFork, Home, Users, ChevronDown, BarChart2, TreePine, Compass, Route, Calculator } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -21,6 +21,7 @@ const algorithmItems = [
   { to: "/northwest", label: "Northwest", icon: Compass },
   { to: "/kruskal", label: "Kruskal", icon: Compass },
   { to: "/dijkstra", label: "Dijkstra", icon: Route},
+  { to: "/mamdani", label: "mamdani", icon: Calculator},
 ];
 
 const Navbar = () => {
