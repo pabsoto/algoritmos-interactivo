@@ -14,6 +14,7 @@ import {
   Zap,
   Trophy,
   ArrowRight,
+  AlertTriangle,
 } from "lucide-react";
 
 type NodeType = {
@@ -40,6 +41,91 @@ interface ResultData {
   isConnected: boolean;
   nodeDistances: Record<number, number>;
   allNodes: NodeType[];
+}
+
+/* ─────────────────────────────────────────────
+   VALIDACIONES COMPARTIDAS
+   Devuelve un string de error o null si todo OK
+───────────────────────────────────────────── */
+function validateGraph(
+  nodes: NodeType[],
+  edges: EdgeType[],
+  mode: "min" | "max"
+): string | null {
+
+  // 1. Grafo vacío
+  if (nodes.length === 0) return "El grafo no tiene nodos. Crea al menos 2 nodos y conecta\u00adlos.";
+  if (edges.length === 0) return "El grafo no tiene aristas. Conecta los nodos antes de calcular.";
+
+  // 2. Mínimo 2 nodos para que tenga sentido un camino
+  if (nodes.length < 2)
+    return "Se necesitan al menos 2 nodos para calcular un camino.";
+
+  // 3. Nodos aislados (sin ninguna arista, ni entrante ni saliente)
+  const isolatedNodes = nodes.filter(
+    (n) => !edges.some((e) => e.from === n.id || e.to === n.id)
+  );
+  if (isolatedNodes.length > 0) {
+    const labels = isolatedNodes.map((n) => `"${n.label}"`).join(", ");
+    return `Los siguientes nodos están aislados (sin aristas): ${labels}.\nElimínalos o conéctalos antes de calcular.`;
+  }
+
+  // 4. Aristas duplicadas (misma dirección, mismo par de nodos)
+  const edgeSet = new Set<string>();
+  for (const e of edges) {
+    const key = `${e.from}->${e.to}`;
+    if (edgeSet.has(key)) {
+      const fromNode = nodes.find((n) => n.id === e.from);
+      const toNode   = nodes.find((n) => n.id === e.to);
+      return `Existe más de una arista de "${fromNode?.label}" a "${toNode?.label}".\nElimina las aristas duplicadas; Dijkstra no maneja multigrafos.`;
+    }
+    edgeSet.add(key);
+  }
+
+  // 5. Pesos negativos (solo para Minimizar — Dijkstra clásico)
+  if (mode === "min") {
+    const negEdge = edges.find((e) => e.weight < 0);
+    if (negEdge) {
+      const fromNode = nodes.find((n) => n.id === negEdge.from);
+      const toNode   = nodes.find((n) => n.id === negEdge.to);
+      return `La arista de "${fromNode?.label}" a "${toNode?.label}" tiene peso negativo (${negEdge.weight}).\nDijkstra clásico requiere pesos ≥ 0. Usa Bellman-Ford para pesos negativos.`;
+    }
+  }
+
+  // 6. Self-loops: advertencia (no bloquean, pero los ignoramos en el camino)
+  // — no se bloquea, solo se informa en el resultado
+
+  // 7. Nodo inicio: exactamente uno sin aristas entrantes
+  //    (excluyendo self-loops para esta detección)
+  const realEdges = edges.filter((e) => e.from !== e.to);
+  const startNodes = nodes.filter(
+    (n) => !realEdges.some((e) => e.to === n.id)
+  );
+  const endNodes = nodes.filter(
+    (n) => !realEdges.some((e) => e.from === n.id)
+  );
+
+  if (startNodes.length === 0)
+    return "No se encontró un nodo de inicio (todos tienen aristas entrantes). El grafo posiblemente tiene ciclos.";
+
+  if (startNodes.length > 1) {
+    const labels = startNodes.map((n) => `"${n.label}"`).join(", ");
+    return `Hay ${startNodes.length} nodos sin aristas entrantes: ${labels}.\nEl grafo debe tener exactamente UN nodo de inicio (sin aristas entrantes).`;
+  }
+
+  if (endNodes.length === 0)
+    return "No se encontró un nodo destino (todos tienen aristas salientes). El grafo posiblemente tiene ciclos.";
+
+  if (endNodes.length > 1) {
+    const labels = endNodes.map((n) => `"${n.label}"`).join(", ");
+    return `Hay ${endNodes.length} nodos sin aristas salientes: ${labels}.\nEl grafo debe tener exactamente UN nodo destino (sin aristas salientes).`;
+  }
+
+  // 8. El nodo inicio y fin no pueden ser el mismo
+  if (startNodes[0].id === endNodes[0].id)
+    return `El nodo "${startNodes[0].label}" es a la vez inicio y destino.\nRevisa las conexiones del grafo.`;
+
+  return null; // ✅ todo OK
 }
 
 const Dijkstra = () => {
@@ -79,7 +165,10 @@ const Dijkstra = () => {
   const [calcMode, setCalcMode] = useState<CalcMode | null>(null);
   const [resultPathEdges, setResultPathEdges] = useState<number[]>([]);
 
-  // --- Contador global de IDs para evitar duplicados al borrar ---
+  // Error modal
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  // Contador global de IDs para evitar duplicados al borrar
   const nodeIdCounter = useRef(0);
 
   /* ---------- MEDIR CONTENEDOR ---------- */
@@ -128,7 +217,6 @@ const Dijkstra = () => {
         const loadedNodes: NodeType[] = parsed.nodes || [];
         setNodes(loadedNodes);
         setEdges(parsed.edges || []);
-        // Ajustar contador al máximo id guardado
         if (loadedNodes.length > 0) {
           nodeIdCounter.current = Math.max(...loadedNodes.map((n) => n.id));
         }
@@ -153,6 +241,9 @@ const Dijkstra = () => {
     setCalcMode(null);
     setResultPathEdges([]);
   };
+
+  // Cuenta self-loops del grafo actual
+  const selfLoopCount = edges.filter((e) => e.from === e.to).length;
 
   /* ---------- CANVAS CLICK ---------- */
   const handleCanvasClick = (e: React.MouseEvent) => {
@@ -273,11 +364,34 @@ const Dijkstra = () => {
   const createEdge = () => {
     if (!tempConnection) return;
     if (tempConnection.from.id === tempConnection.to.id) {
+      // Permitir self-loop pero avisar que no cuenta para el camino
+      const finalWeight = weightInput === "" ? 1 : Number(weightInput);
+      setEdges((prev) => [
+        ...prev,
+        { from: tempConnection.from.id, to: tempConnection.to.id, type: "directed", weight: finalWeight },
+      ]);
+      setShowMenu(false);
+      setTempConnection(null);
+      setWeightInput("1");
+      clearNetworkMetrics();
+      return;
+    }
+
+    // Verificar arista duplicada antes de crear
+    const alreadyExists = edges.some(
+      (e) => e.from === tempConnection.from.id && e.to === tempConnection.to.id
+    );
+    if (alreadyExists) {
+      setErrorMsg(
+        `Ya existe una arista de "${tempConnection.from.label}" a "${tempConnection.to.label}".\n` +
+        `Dijkstra no permite aristas paralelas. Edita el peso de la existente con clic derecho.`
+      );
       setShowMenu(false);
       setTempConnection(null);
       setWeightInput("1");
       return;
     }
+
     const finalWeight = weightInput === "" ? 1 : Number(weightInput);
     setEdges((prev) => [
       ...prev,
@@ -354,23 +468,14 @@ const Dijkstra = () => {
   };
 
   const minimizeShortestPath = () => {
-    if (nodes.length === 0 || edges.length === 0) {
-      alert("Se necesitan nodos y aristas para calcular el camino más corto.");
-      return;
-    }
-    if (edges.some((e) => e.weight < 0)) {
-      alert("Dijkstra no soporta pesos negativos. Edita las aristas.");
-      return;
-    }
+    // ── VALIDACIÓN UNIFICADA ──
+    const err = validateGraph(nodes, edges, "min");
+    if (err) { setErrorMsg(err); return; }
 
-    const startNodes = nodes.filter((n) => !edges.some((e) => e.to === n.id));
-    const endNodes = nodes.filter((n) => !edges.some((e) => e.from === n.id));
-    if (!startNodes.length || !endNodes.length) {
-      alert("No se encontró nodo inicial o final claro. Verifica que el grafo tenga un nodo sin aristas entrantes y otro sin aristas salientes.");
-      return;
-    }
-    const startNode = startNodes[0];
-    const endNode = endNodes[0];
+    // Trabajar solo con aristas reales (sin self-loops para el algoritmo)
+    const realEdges = edges.filter((e) => e.from !== e.to);
+    const startNode = nodes.filter((n) => !realEdges.some((e) => e.to === n.id))[0];
+    const endNode   = nodes.filter((n) => !realEdges.some((e) => e.from === n.id))[0];
 
     const distances: Record<number, number> = {};
     const previous: Record<number, number | null> = {};
@@ -385,14 +490,20 @@ const Dijkstra = () => {
     while (unvisited.size > 0) {
       let current: number | null = null;
       let minDist = Infinity;
-      unvisited.forEach((id) => { if (distances[id] < minDist) { minDist = distances[id]; current = id; } });
+      unvisited.forEach((id) => {
+        if (distances[id] < minDist) { minDist = distances[id]; current = id; }
+      });
       if (current === null || distances[current] === Infinity) break;
       if (current === endNode.id) break;
       unvisited.delete(current);
-      edges.forEach((edge) => {
+      // Solo aristas reales
+      realEdges.forEach((edge) => {
         if (edge.from === current && unvisited.has(edge.to)) {
           const alt = distances[current!] + edge.weight;
-          if (alt < distances[edge.to]) { distances[edge.to] = alt; previous[edge.to] = current; }
+          if (alt < distances[edge.to]) {
+            distances[edge.to] = alt;
+            previous[edge.to] = current;
+          }
         }
       });
     }
@@ -408,6 +519,7 @@ const Dijkstra = () => {
       curr = previous[curr];
     }
 
+    // Reconstruir índices usando TODAS las aristas (edges[]), no solo realEdges
     const pathEdgeIds: number[] = [];
     for (let i = 0; i < path.length - 1; i++) {
       const idx = edges.findIndex((e) => e.from === path[i] && e.to === path[i + 1]);
@@ -423,48 +535,54 @@ const Dijkstra = () => {
   };
 
   const maximizeLongestPath = () => {
-    if (nodes.length === 0 || edges.length === 0) {
-      alert("Se necesitan nodos y aristas para calcular el camino más largo.");
-      return;
-    }
+    // ── VALIDACIÓN UNIFICADA ──
+    const err = validateGraph(nodes, edges, "max");
+    if (err) { setErrorMsg(err); return; }
 
-    const startNodes = nodes.filter((n) => !edges.some((e) => e.to === n.id));
-    const endNodes = nodes.filter((n) => !edges.some((e) => e.from === n.id));
-    if (!startNodes.length || !endNodes.length) {
-      alert("No se encontró nodo inicial o final. El grafo puede tener ciclos.");
-      return;
-    }
-    const startNode = startNodes[0];
-    const endNode = endNodes[0];
+    const realEdges = edges.filter((e) => e.from !== e.to);
+    const startNode = nodes.filter((n) => !realEdges.some((e) => e.to === n.id))[0];
+    const endNode   = nodes.filter((n) => !realEdges.some((e) => e.from === n.id))[0];
 
-    // Kahn's topological sort + cycle detection
+    // Kahn's topological sort + cycle detection (sobre aristas reales)
     const inDegree: Record<number, number> = {};
     nodes.forEach((n) => { inDegree[n.id] = 0; });
-    edges.forEach((e) => { inDegree[e.to] = (inDegree[e.to] || 0) + 1; });
-    const queue = nodes.filter((n) => inDegree[n.id] === 0).map((n) => n.id);
+    realEdges.forEach((e) => { inDegree[e.to] = (inDegree[e.to] || 0) + 1; });
+    const q = nodes.filter((n) => inDegree[n.id] === 0).map((n) => n.id);
     const topoOrder: number[] = [];
-    const q = [...queue];
-    while (q.length > 0) {
-      const curr = q.shift()!;
+    const queue = [...q];
+    while (queue.length > 0) {
+      const curr = queue.shift()!;
       topoOrder.push(curr);
-      edges.forEach((e) => {
-        if (e.from === curr) { inDegree[e.to]--; if (inDegree[e.to] === 0) q.push(e.to); }
+      realEdges.forEach((e) => {
+        if (e.from === curr) {
+          inDegree[e.to]--;
+          if (inDegree[e.to] === 0) queue.push(e.to);
+        }
       });
     }
     if (topoOrder.length !== nodes.length) {
-      alert("El grafo contiene ciclos. El camino más largo solo se puede calcular en DAGs.");
+      setErrorMsg(
+        "El grafo contiene ciclos. El camino más largo (Maximizar) solo puede calcularse en grafos\n" +
+        "acíclicos dirigidos (DAG). Elimina los ciclos e intenta de nuevo."
+      );
       return;
     }
 
     const distances: Record<number, number> = {};
     const previous: Record<number, number | null> = {};
-    nodes.forEach((n) => { distances[n.id] = n.id === startNode.id ? 0 : -Infinity; previous[n.id] = null; });
+    nodes.forEach((n) => {
+      distances[n.id] = n.id === startNode.id ? 0 : -Infinity;
+      previous[n.id] = null;
+    });
     for (const curr of topoOrder) {
       if (!Number.isFinite(distances[curr])) continue;
-      edges.forEach((edge) => {
+      realEdges.forEach((edge) => {
         if (edge.from === curr) {
           const alt = distances[curr] + edge.weight;
-          if (alt > distances[edge.to]) { distances[edge.to] = alt; previous[edge.to] = curr; }
+          if (alt > distances[edge.to]) {
+            distances[edge.to] = alt;
+            previous[edge.to] = curr;
+          }
         }
       });
     }
@@ -512,8 +630,6 @@ const Dijkstra = () => {
   /* ---------- RENDER ---------- */
   const isMin = resultData?.mode === "min";
   const accent = isMin ? "#10b981" : "#ef4444";
-  const accentDim = isMin ? "rgba(16,185,129,0.12)" : "rgba(239,68,68,0.1)";
-  const accentBorder = isMin ? "rgba(16,185,129,0.25)" : "rgba(239,68,68,0.25)";
 
   return (
     <Layout>
@@ -547,13 +663,11 @@ const Dijkstra = () => {
 
         .result-body { padding:1.5rem 2rem; display:flex; flex-direction:column; gap:1.25rem; }
 
-        /* Stat cards */
         .stat-row { display:grid; grid-template-columns:repeat(3,1fr); gap:0.7rem; }
         .stat-card { background:#111827; border:1px solid #1f2937; border-radius:14px; padding:0.9rem; text-align:center; }
         .stat-val { font-size:1.7rem; font-weight:900; font-variant-numeric:tabular-nums; line-height:1; margin-bottom:0.25rem; }
         .stat-lbl { font-size:0.58rem; font-weight:700; text-transform:uppercase; letter-spacing:0.1em; color:#64748b; }
 
-        /* Path display */
         .path-row { display:flex; flex-wrap:wrap; align-items:center; gap:0.4rem; padding:1rem 1.25rem; background:#111827; border:1px solid #1f2937; border-radius:14px; }
         .path-node { padding:0.3rem 0.85rem; border-radius:999px; font-size:0.9rem; font-weight:800; font-family:'JetBrains Mono','Fira Code',monospace; }
         .path-node.min { background:rgba(16,185,129,0.12); border:1px solid rgba(16,185,129,0.25); color:#86efac; }
@@ -561,16 +675,14 @@ const Dijkstra = () => {
         .path-arrow.min { color:#10b981; font-size:0.85rem; }
         .path-arrow.max { color:#ef4444; font-size:0.85rem; }
 
-        /* Weight bar */
         .weight-bar { display:flex; align-items:center; justify-content:space-between; padding:1rem 1.35rem; border-radius:14px; }
         .weight-bar.min { background:linear-gradient(135deg,#111827,#0d1f17); border:1px solid rgba(16,185,129,0.22); }
         .weight-bar.max { background:linear-gradient(135deg,#111827,#1c0f0f); border:1px solid rgba(239,68,68,0.22); }
         .weight-num { font-size:2.5rem; font-weight:900; font-variant-numeric:tabular-nums; }
 
-        /* Alert */
         .alert-disc { display:flex; align-items:center; gap:0.7rem; padding:0.8rem 1rem; background:rgba(239,68,68,0.07); border:1px solid rgba(239,68,68,0.22); border-radius:12px; font-size:0.75rem; color:#fca5a5; }
+        .alert-warn { display:flex; align-items:center; gap:0.7rem; padding:0.8rem 1rem; background:rgba(245,158,11,0.07); border:1px solid rgba(245,158,11,0.22); border-radius:12px; font-size:0.75rem; color:#fcd34d; }
 
-        /* Accordion */
         .acc-header { display:flex; align-items:center; justify-content:space-between; padding:0.65rem 0.9rem; border-radius:10px; cursor:pointer; transition:background 0.15s,border-color 0.15s; user-select:none; border:1px solid transparent; }
         .acc-header.min { background:rgba(16,185,129,0.05); border-color:rgba(16,185,129,0.14); }
         .acc-header.min:hover { background:rgba(16,185,129,0.1); border-color:rgba(16,185,129,0.28); }
@@ -589,7 +701,6 @@ const Dijkstra = () => {
         .acc-body.closed { max-height:0!important; opacity:0; pointer-events:none; margin-top:0; }
         .acc-body.open { opacity:1; margin-top:0.5rem; }
 
-        /* Edge list items */
         .edge-item { display:flex; align-items:center; justify-content:space-between; padding:0.55rem 0.8rem; border-radius:9px; font-size:0.78rem; font-weight:600; font-family:'JetBrains Mono','Fira Code',monospace; }
         .edge-item.min { background:rgba(16,185,129,0.07); border:1px solid rgba(16,185,129,0.18); color:#86efac; }
         .edge-item.max { background:rgba(239,68,68,0.06);  border:1px solid rgba(239,68,68,0.15);  color:#fca5a5; }
@@ -597,11 +708,9 @@ const Dijkstra = () => {
         .edge-badge.min { background:rgba(16,185,129,0.12); color:#10b981; border:1px solid rgba(16,185,129,0.25); }
         .edge-badge.max { background:rgba(239,68,68,0.1);   color:#ef4444; border:1px solid rgba(239,68,68,0.22); }
 
-        /* Distances table */
         .dist-item { display:flex; align-items:center; justify-content:space-between; padding:0.5rem 0.8rem; border-radius:9px; font-size:0.78rem; font-family:'JetBrains Mono','Fira Code',monospace; background:#111827; border:1px solid #1f2937; }
         .dist-val { font-weight:800; color:#818cf8; }
 
-        /* Footer */
         .result-footer { padding:1rem 2rem 1.5rem; display:flex; justify-content:flex-end; gap:0.7rem; border-top:1px solid #1f2937; }
         .btn-close  { background:#1f2937; border:1px solid #374151; color:#94a3b8; padding:0.55rem 1.3rem; border-radius:9px; font-size:0.72rem; font-weight:700; letter-spacing:0.05em; text-transform:uppercase; cursor:pointer; transition:0.18s; }
         .btn-close:hover { background:#374151; color:white; }
@@ -610,13 +719,15 @@ const Dijkstra = () => {
         .btn-reset.max { background:linear-gradient(135deg,#ef4444,#dc2626); box-shadow:0 0 14px rgba(239,68,68,0.18); }
         .btn-reset:hover { transform:translateY(-1px); }
 
-        /* Scrollbar */
         .result-modal::-webkit-scrollbar { width:4px; }
         .result-modal::-webkit-scrollbar-track { background:transparent; }
         .result-modal::-webkit-scrollbar-thumb { background:#1f2937; border-radius:4px; }
 
-        /* Selected node ring */
         .node-selected { outline: 3px solid #06b6d4; outline-offset: 3px; }
+
+        /* Error modal */
+        .error-overlay { position:fixed; inset:0; z-index:70; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,0.7); backdrop-filter:blur(4px); padding:1.5rem; animation:rFadeIn 0.2s ease; }
+        .error-modal { background:#0d1117; border:1px solid rgba(239,68,68,0.4); border-radius:20px; width:100%; max-width:480px; padding:2rem; box-shadow:0 0 50px rgba(239,68,68,0.12),0 20px 60px rgba(0,0,0,0.6); animation:rSlideUp 0.28s cubic-bezier(0.16,1,0.3,1); }
       `}</style>
 
       <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 py-10 px-6">
@@ -657,6 +768,12 @@ const Dijkstra = () => {
               <div className="space-y-2 text-slate-300 text-sm">
                 <div className="flex justify-between"><span>Nodos</span><span className="font-bold text-white">{nodes.length}</span></div>
                 <div className="flex justify-between"><span>Aristas</span><span className="font-bold text-white">{edges.length}</span></div>
+                {selfLoopCount > 0 && (
+                  <div className="flex justify-between text-amber-400">
+                    <span>Auto-lazos</span>
+                    <span className="font-bold">{selfLoopCount}</span>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -741,8 +858,12 @@ const Dijkstra = () => {
                   const style = getEdgeStyle(index);
                   const isHovered = hoveredEdgeIndex === index;
                   const isPath = resultPathEdges.includes(index);
+                  const isSelfLoop = edge.from === edge.to;
 
                   let strokeColor = isHovered ? "#a7f3d0" : style.color;
+                  // Self-loops siempre en amarillo ámbar para distinguirlos
+                  if (isSelfLoop) strokeColor = isHovered ? "#fcd34d" : "#f59e0b";
+
                   const strokeWidth = isHovered ? 5 : style.width;
                   const opacity = hoveredEdgeIndex !== null && !isHovered ? Math.min(style.opacity, 0.2) : style.opacity;
 
@@ -752,7 +873,7 @@ const Dijkstra = () => {
                   else if (isPath && calcMode === "max") markerEnd = "url(#arr-max)";
 
                   // Self-loop
-                  if (edge.from === edge.to) {
+                  if (isSelfLoop) {
                     const lH = 60, lW = 50, nr = 24;
                     const sX = from.x - 6, sY = from.y - nr;
                     const c1X = from.x - lW, c1Y = from.y - lH;
@@ -764,10 +885,12 @@ const Dijkstra = () => {
                         onMouseEnter={() => setHoveredEdgeIndex(index)} onMouseLeave={() => setHoveredEdgeIndex(null)}
                         style={{ pointerEvents: "auto", cursor: "pointer", opacity }}>
                         <path d={d} fill="none" stroke="#fff" strokeWidth={20} strokeOpacity={0.001} />
-                        <path d={d} fill="none" stroke={strokeColor} strokeWidth={strokeWidth} markerEnd="url(#arr-small)" style={{ transition: "all 0.3s" }} />
-                        <text x={from.x} y={from.y - lH - 8} fill={isHovered ? "#a7f3d0" : "#f8fafc"} fontSize="12" fontWeight="bold" textAnchor="middle" style={{ pointerEvents: "auto", cursor: "pointer", transition: "all 0.3s" }}>
+                        <path d={d} fill="none" stroke={strokeColor} strokeWidth={strokeWidth} strokeDasharray="5,3" markerEnd="url(#arr-small)" style={{ transition: "all 0.3s" }} />
+                        <text x={from.x} y={from.y - lH - 8} fill={isHovered ? "#fcd34d" : "#f59e0b"} fontSize="12" fontWeight="bold" textAnchor="middle" style={{ pointerEvents: "auto", cursor: "pointer", transition: "all 0.3s" }}>
                           {edge.weight}
                         </text>
+                        {/* Etiqueta "loop" */}
+                        <text x={from.x} y={from.y - lH - 22} fill="#f59e0b" fontSize="8" fontWeight="700" textAnchor="middle" opacity="0.7">auto</text>
                       </g>
                     );
                   }
@@ -810,7 +933,12 @@ const Dijkstra = () => {
                 <div className="absolute bg-slate-900/95 backdrop-blur-xl text-white p-5 rounded-2xl shadow-2xl z-50 w-56 border border-white/10"
                   style={{ left: menuPosition.x, top: menuPosition.y }}
                   onMouseDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
-                  <p className="text-xs font-semibold text-slate-400 mb-2 uppercase tracking-wider">Peso de la arista</p>
+                  <p className="text-xs font-semibold text-slate-400 mb-1 uppercase tracking-wider">Peso de la arista</p>
+                  {tempConnection && tempConnection.from.id === tempConnection.to.id && (
+                    <p className="text-xs text-amber-400 mb-2 flex items-center gap-1">
+                      <AlertTriangle size={10} /> Auto-lazo: no cuenta en el camino
+                    </p>
+                  )}
                   <input type="number" value={weightInput} onChange={(e) => setWeightInput(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && createEdge()}
                     className="w-full p-2 rounded-xl bg-slate-800 border border-white/10 mb-3 text-white" autoFocus />
@@ -880,7 +1008,12 @@ const Dijkstra = () => {
                 <div className="absolute bg-slate-900/95 backdrop-blur-xl text-white p-5 rounded-2xl shadow-2xl z-50 w-56 border border-white/10"
                   style={{ left: edgeMenuPosition.x, top: edgeMenuPosition.y }}
                   onMouseDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
-                  <p className="text-xs font-semibold text-slate-400 mb-2 uppercase tracking-wider">Editar arista</p>
+                  <p className="text-xs font-semibold text-slate-400 mb-1 uppercase tracking-wider">Editar arista</p>
+                  {editingEdge.from === editingEdge.to && (
+                    <p className="text-xs text-amber-400 mb-2 flex items-center gap-1">
+                      <AlertTriangle size={10} /> Auto-lazo (no cuenta en el camino)
+                    </p>
+                  )}
                   <input type="number" value={edgeValueInput} onChange={(e) => setEdgeValueInput(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && handleConfirmEdgeValue()}
                     className="w-full p-2 rounded-xl bg-slate-800 border border-white/10 mb-3 text-white" autoFocus />
@@ -903,6 +1036,36 @@ const Dijkstra = () => {
           </div>
         </div>
       </div>
+
+      {/* ── ERROR MODAL ── */}
+      {errorMsg && (
+        <div className="error-overlay" onClick={() => setErrorMsg(null)}>
+          <div className="error-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-start gap-3 mb-4">
+              <div className="w-10 h-10 rounded-full bg-red-500/15 border border-red-500/30 flex items-center justify-center flex-shrink-0 mt-0.5">
+                <AlertTriangle size={18} className="text-red-400" />
+              </div>
+              <div>
+                <div className="text-sm font-bold text-red-400 mb-1 uppercase tracking-wider">Restricción del grafo</div>
+                <div className="text-white font-semibold text-base leading-snug">No se puede calcular</div>
+              </div>
+            </div>
+            <div className="bg-slate-800/60 border border-slate-700 rounded-xl p-4 mb-5">
+              {errorMsg.split("\n").map((line, i) => (
+                <p key={i} className={`text-sm ${i === 0 ? "text-slate-200 font-medium" : "text-slate-400 mt-1 text-xs"}`}>{line}</p>
+              ))}
+            </div>
+            <div className="flex justify-end">
+              <button
+                onClick={() => setErrorMsg(null)}
+                className="px-5 py-2 bg-red-600 hover:bg-red-500 text-white font-bold rounded-xl text-sm transition-all"
+              >
+                Entendido
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── MODAL RESULTADO FLOTANTE ── */}
       {showResult && resultData && (
@@ -1096,30 +1259,98 @@ const Dijkstra = () => {
         </button>
       </div>
 
-      {/* MODAL AYUDA */}
+      {/* MODAL AYUDA — COMPLETO Y DETALLADO */}
       {showHelp && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="bg-slate-900 border border-slate-700 p-6 rounded-2xl w-full max-w-lg shadow-2xl relative">
+          <div className="bg-slate-900 border border-slate-700 p-6 rounded-2xl w-full max-w-2xl shadow-2xl relative">
             <button onClick={() => setShowHelp(false)} className="absolute top-4 right-4 text-slate-400 hover:text-white transition-colors p-1.5 hover:bg-slate-800 rounded-full">
               <X size={18} />
             </button>
             <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
               <HelpCircle size={19} className="text-slate-300" />
-              Guía: Algoritmo de Dijkstra
+              Guía completa — Algoritmo de Dijkstra
             </h2>
-            <div className="text-slate-300 text-sm space-y-4 max-h-[60vh] overflow-y-auto pr-2">
-              <p>El <strong> Algoritmo de Dijkstra</strong> es un método en teoría de grafos para encontrar el camino más óptimo desde un nodo origen hacia un nodo destino.</p>
-              <ul className="list-disc pl-5 space-y-2">
-                <li><strong>Nodo origen:</strong> el primero que no tenga aristas entrantes.</li>
-                <li><strong>Nodo destino:</strong> el último que no tenga aristas salientes.</li>
-                <li><strong className="text-emerald-400">Minimizar:</strong> camino con el menor costo acumulado (Dijkstra clásico, sin pesos negativos).</li>
-                <li><strong className="text-rose-400">Maximizar:</strong> camino con el mayor costo en un DAG (programación dinámica en orden topológico).</li>
-              </ul>
-              <h3 className="text-base font-semibold text-slate-300 mt-2">Resultado flotante</h3>
-              <p>Al resolver, aparece un modal con la secuencia del camino, desglose de aristas (plegable) y distancias acumuladas por nodo (plegable). También puedes ver el resultado luego desde el botón lateral.</p>
-              <p className="text-amber-200/80 bg-amber-500/10 p-3 rounded-lg border border-amber-500/20">
-                 El camino queda resaltado en el lienzo: <span className="text-emerald-400 font-bold">verde</span> para mínimo, <span className="text-rose-400 font-bold">rojo</span> para máximo.
-              </p>
+            <div className="text-slate-300 text-sm space-y-5 max-h-[70vh] overflow-y-auto pr-2">
+
+              {/* Qué es */}
+              <div>
+                <h3 className="text-base font-bold text-white mb-1">¿Qué es Dijkstra?</h3>
+                <p>El <strong>Algoritmo de Dijkstra</strong> es un método clásico de teoría de grafos para encontrar el camino más corto (menor costo acumulado) desde un nodo origen hacia un nodo destino en un grafo dirigido con pesos no negativos.</p>
+                <p className="mt-1">Para el camino más largo se usa <strong>Programación Dinámica en orden topológico</strong>, aplicable solo en <strong>DAGs</strong> (grafos dirigidos sin ciclos).</p>
+              </div>
+
+              {/* Nodos */}
+              <div>
+                <h3 className="text-base font-bold text-white mb-2">Nodos</h3>
+                <div className="bg-slate-800/60 border border-slate-700 rounded-xl p-3 space-y-1.5 text-xs">
+                  <div className="flex gap-2"><span className="text-cyan-400 font-bold w-28">Representan</span><span>Puntos, ciudades, etapas o estados del sistema</span></div>
+                  <div className="flex gap-2"><span className="text-cyan-400 font-bold w-28">Creación</span><span>Clic en zona vacía del lienzo</span></div>
+                  <div className="flex gap-2"><span className="text-cyan-400 font-bold w-28">Nombre</span><span>Asignado automáticamente (A, B, C…). Editar con clic derecho</span></div>
+                  <div className="flex gap-2"><span className="text-cyan-400 font-bold w-28">Mover</span><span>Arrastrar con clic sostenido</span></div>
+                  <div className="flex gap-2"><span className="text-cyan-400 font-bold w-28">Eliminar</span><span>Clic derecho → "Eliminar nodo" (también borra sus aristas)</span></div>
+                  <div className="flex gap-2"><span className="text-cyan-400 font-bold w-28">Nodo inicio</span><span>El único sin aristas <em>entrantes</em> (no tiene flechas que lleguen a él)</span></div>
+                  <div className="flex gap-2"><span className="text-cyan-400 font-bold w-28">Nodo destino</span><span>El único sin aristas <em>salientes</em> (no tiene flechas que salgan de él)</span></div>
+                </div>
+              </div>
+
+              {/* Aristas */}
+              <div>
+                <h3 className="text-base font-bold text-white mb-2">Aristas</h3>
+                <div className="bg-slate-800/60 border border-slate-700 rounded-xl p-3 space-y-1.5 text-xs">
+                  <div className="flex gap-2"><span className="text-indigo-400 font-bold w-28">Tipo</span><span>Siempre <strong>dirigidas</strong> (con flecha → indicando dirección del flujo)</span></div>
+                  <div className="flex gap-2"><span className="text-indigo-400 font-bold w-28">Peso</span><span>Número entero o decimal. Representa costo, distancia, tiempo, etc.</span></div>
+                  <div className="flex gap-2"><span className="text-indigo-400 font-bold w-28">Creación</span><span>Clic en nodo A → clic en nodo B → ingresar peso → "Crear"</span></div>
+                  <div className="flex gap-2"><span className="text-indigo-400 font-bold w-28">Editar peso</span><span>Clic derecho sobre la arista o su etiqueta de peso</span></div>
+                  <div className="flex gap-2"><span className="text-indigo-400 font-bold w-28">Eliminar</span><span>Clic derecho → "Eliminar arista"</span></div>
+                  <div className="flex gap-2"><span className="text-indigo-400 font-bold w-28">Bidireccional</span><span>Crear A→B y B→A por separado; se dibujan curvadas para distinguirlas</span></div>
+                  <div className="flex gap-2"><span className="text-amber-400 font-bold w-28">Auto-lazo</span><span>Clic en el mismo nodo dos veces. Se dibuja en <span className="text-amber-400">naranja punteado</span> y <strong>no se cuenta</strong> en el camino</span></div>
+                </div>
+              </div>
+
+              {/* Restricciones */}
+              <div>
+                <h3 className="text-base font-bold text-white mb-2">Restricciones del grafo</h3>
+                <div className="space-y-2">
+                  {[
+                    { color: "text-red-400", label: "Pesos negativos (Minimizar)", desc: "Dijkstra clásico no funciona con pesos < 0. Edita las aristas para usar valores ≥ 0." },
+                    { color: "text-red-400", label: "Nodos aislados", desc: "Todo nodo debe estar conectado con al menos una arista. Los nodos sin conexión se bloquean." },
+                    { color: "text-red-400", label: "Aristas paralelas", desc: "No se permiten dos aristas en la misma dirección entre el mismo par de nodos." },
+                    { color: "text-red-400", label: "Múltiples nodos de inicio/destino", desc: "Debe haber exactamente UN nodo sin aristas entrantes y UNO sin aristas salientes." },
+                    { color: "text-red-400", label: "Ciclos (Maximizar)", desc: "El camino más largo solo funciona en DAGs. Si hay ciclos el algoritmo no se ejecuta." },
+                    { color: "text-amber-400", label: "Auto-lazos", desc: "Se permiten visualmente pero se ignoran completamente en el cálculo del camino." },
+                  ].map((r, i) => (
+                    <div key={i} className="flex gap-2 bg-slate-800/40 border border-slate-700/60 rounded-lg p-2.5">
+                      <XCircle size={13} className={`${r.color} flex-shrink-0 mt-0.5`} />
+                      <div><span className={`font-bold ${r.color}`}>{r.label}:</span> <span className="text-slate-400">{r.desc}</span></div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Modos */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-emerald-500/8 border border-emerald-500/20 rounded-xl p-3">
+                  <div className="flex items-center gap-1.5 mb-1.5">
+                    <TrendingDown size={14} className="text-emerald-400" />
+                    <span className="font-bold text-emerald-400 text-xs uppercase tracking-wider">Minimizar</span>
+                  </div>
+                  <p className="text-xs text-slate-300">Dijkstra clásico. Encuentra la ruta con menor suma de pesos. El camino se resalta en <strong className="text-emerald-400">verde</strong>. No permite pesos negativos.</p>
+                </div>
+                <div className="bg-red-500/8 border border-red-500/20 rounded-xl p-3">
+                  <div className="flex items-center gap-1.5 mb-1.5">
+                    <TrendingUp size={14} className="text-red-400" />
+                    <span className="font-bold text-red-400 text-xs uppercase tracking-wider">Maximizar</span>
+                  </div>
+                  <p className="text-xs text-slate-300">DP topológico en DAG. Encuentra la ruta con mayor suma de pesos. El camino se resalta en <strong className="text-red-400">rojo</strong>. Solo funciona sin ciclos.</p>
+                </div>
+              </div>
+
+              {/* Resultado */}
+              <div>
+                <h3 className="text-base font-bold text-white mb-1">Resultado modal</h3>
+                <p className="text-xs text-slate-400">Muestra: <strong className="text-slate-300">peso total</strong> del camino, <strong className="text-slate-300">secuencia de nodos</strong>, <strong className="text-slate-300">desglose de aristas</strong> (con peso individual) y <strong className="text-slate-300">distancias acumuladas</strong> desde el origen hacia cada nodo (∞ = inalcanzable). El camino queda resaltado en el lienzo hasta que limpies el resultado.</p>
+              </div>
+
             </div>
             <div className="mt-5 flex justify-end">
               <button onClick={() => setShowHelp(false)} className="px-5 py-2 bg-slate-200 hover:bg-white text-slate-900 font-semibold rounded-lg transition-colors text-sm">
