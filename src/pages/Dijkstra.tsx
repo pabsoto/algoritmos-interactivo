@@ -1275,8 +1275,7 @@ const Dijkstra = () => {
               {/* Qué es */}
               <div>
                 <h3 className="text-base font-bold text-white mb-1">¿Qué es Dijkstra?</h3>
-                <p>El <strong>Algoritmo de Dijkstra</strong> es un método clásico de teoría de grafos para encontrar el camino más corto (menor costo acumulado) desde un nodo origen hacia un nodo destino en un grafo dirigido con pesos no negativos.</p>
-                <p className="mt-1">Para el camino más largo se usa <strong>Programación Dinámica en orden topológico</strong>, aplicable solo en <strong>DAGs</strong> (grafos dirigidos sin ciclos).</p>
+                <p>El <strong>Algoritmo de Dijkstra</strong> es un método en teoría de grafos para encontrar el camino más óptimo (usualmente el más corto) desde un nodo origen hacia un nodo destino. Explora sistemáticamente los caminos adyacentes, acumulando distancias y garantizando siempre la ruta de menor costo global a medida que avanza.</p>
               </div>
 
               {/* Nodos */}
@@ -1316,7 +1315,7 @@ const Dijkstra = () => {
                     { color: "text-red-400", label: "Nodos aislados", desc: "Todo nodo debe estar conectado con al menos una arista. Los nodos sin conexión se bloquean." },
                     { color: "text-red-400", label: "Aristas paralelas", desc: "No se permiten dos aristas en la misma dirección entre el mismo par de nodos." },
                     { color: "text-red-400", label: "Múltiples nodos de inicio/destino", desc: "Debe haber exactamente UN nodo sin aristas entrantes y UNO sin aristas salientes." },
-                    { color: "text-red-400", label: "Ciclos (Maximizar)", desc: "El camino más largo solo funciona en DAGs. Si hay ciclos el algoritmo no se ejecuta." },
+                    { color: "text-red-400", label: "Ciclos (Maximizar)", desc: "El algoritmo de maximización no se ejecuta si el grafo contiene ciclos." },
                     { color: "text-amber-400", label: "Auto-lazos", desc: "Se permiten visualmente pero se ignoran completamente en el cálculo del camino." },
                   ].map((r, i) => (
                     <div key={i} className="flex gap-2 bg-slate-800/40 border border-slate-700/60 rounded-lg p-2.5">
@@ -1341,7 +1340,7 @@ const Dijkstra = () => {
                     <TrendingUp size={14} className="text-red-400" />
                     <span className="font-bold text-red-400 text-xs uppercase tracking-wider">Maximizar</span>
                   </div>
-                  <p className="text-xs text-slate-300">DP topológico en DAG. Encuentra la ruta con mayor suma de pesos. El camino se resalta en <strong className="text-red-400">rojo</strong>. Solo funciona sin ciclos.</p>
+                  <p className="text-xs text-slate-300">Encuentra la ruta con mayor suma de pesos. El camino se resalta en <strong className="text-red-400">rojo</strong>. No permite ciclos.</p>
                 </div>
               </div>
 
