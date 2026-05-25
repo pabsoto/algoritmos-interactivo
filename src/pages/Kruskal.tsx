@@ -1497,6 +1497,10 @@ export default function KruskalSection() {
                   <b>Árbol de Expansión Mínimo (MST)</b> de un grafo. Conecta todos los nodos
                   usando el menor peso total posible, sin formar ciclos.
                 </p>
+                <br />
+                <p className="text-slate-300 text-sm leading-relaxed">
+                  <strong>El algoritmo esta diseñado para grafos no dirigidos. </strong>
+                </p>
               </section>
 
               <section>
